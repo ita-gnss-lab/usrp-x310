@@ -1,0 +1,479 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{codebg}{RGB}{246,246,246}
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false
+}
+
+\title{USRP X310 + TwinRX Configuration on Ubuntu and MATLAB R2026a}
+\author{Rubem Vasconcelos  Pacelli \\ Aeronautics Institute of Technology}
+
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Hardware used}
+
+The setup considered here is:
+
+\begin{itemize}[leftmargin=*]
+    \item Ettus USRP X310;
+    \item one TwinRX Rev.~C receive daughterboard;
+    \item TwinRX provides two receive front-ends/channels: RX0 and RX1;
+    \item the second X310 daughterboard slot is empty;
+    \item Ubuntu host computer connected to X310 port~0 through Ethernet;
+    \item external 10~MHz frequency reference connected to \texttt{REF IN};
+    \item no external PPS is connected;
+    \item MATLAB R2026a with the add-on named ``Wireless Testbench support for NI USRP radios''.
+\end{itemize}
+
+The TwinRX is receive-only. Therefore, the current setup has two usable receive channels and no usable RF transmit chain.
+
+\section{Meaning of the main network addresses}
+
+The Ubuntu host and the X310 must have different IP addresses on the same subnet:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Device & Address & Purpose \\
+\midrule
+Ubuntu Ethernet interface & \texttt{192.168.10.1/24} & Host-side address \\
+USRP X310 port 0 & \texttt{192.168.10.2} & Radio address \\
+Subnet mask & \texttt{255.255.255.0} & Equivalent to \texttt{/24} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% The Linux Ethernet interface name used here is:
+
+% \begin{lstlisting}
+% enp109s0
+% \end{lstlisting}
+
+% This interface name is different from the NetworkManager profile name. For example:
+
+% \begin{lstlisting}
+% NetworkManager profile: usrp_x310_network_profile
+% Linux interface:         enp109s0
+% Host IPv4 address:       192.168.10.1/24
+% \end{lstlisting}
+
+\section{Create a persistent Ubuntu network profile}
+
+In Ubuntu, open:
+
+\begin{center}
+\textbf{Settings $\rightarrow$ Network $\rightarrow$ Wired $\rightarrow$ gear icon}
+\end{center}
+
+Create or edit a profile with the following parameters:
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Parameter & Value \\
+\midrule
+Profile name & \texttt{usrp\_x310\_network\_profile} \\
+IPv4 method & Manual \\
+IPv4 address & \texttt{192.168.10.1} \\
+Netmask & \texttt{255.255.255.0} \\
+Gateway & leave blank \\
+DNS & leave blank \\
+MTU & \texttt{1500} \\
+Connect automatically & enabled \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Useful Linux network checks}
+
+Check the interface state:
+
+\begin{lstlisting}[language=bash]
+ip -br addr show enp109s0
+\end{lstlisting}
+
+Replace \texttt{enp109s0} with the actual NIC (Network Interface Controller/Card) name if it is different in your machine. A correct configuration should show approximately:
+
+\begin{lstlisting}
+enp109s0   UP   192.168.10.1/24
+\end{lstlisting}
+
+Check the physical Ethernet carrier:
+
+\begin{lstlisting}[language=bash]
+cat /sys/class/net/enp109s0/carrier
+\end{lstlisting}
+
+Interpretation:
+
+\begin{itemize}[leftmargin=*]
+    \item \texttt{1}: physical Ethernet link detected;
+    \item \texttt{0}: no physical Ethernet carrier.
+\end{itemize}
+
+The same check can be performed with:
+
+\begin{lstlisting}[language=bash]
+ethtool enp109s0 | grep "Link detected"
+\end{lstlisting}
+
+For a working 1~GbE link, \texttt{ethtool enp109s0} should normally report:
+
+\begin{lstlisting}
+Speed: 1000Mb/s
+Duplex: Full
+Link detected: yes
+\end{lstlisting}
+
+Check routing to the radio:
+
+\begin{lstlisting}[language=bash]
+ip route get 192.168.10.2
+\end{lstlisting}
+
+The route should use \texttt{enp109s0}, not Wi-Fi. A correct result is approximately:
+
+\begin{lstlisting}
+192.168.10.2 dev enp109s0 src 192.168.10.1
+\end{lstlisting}
+
+Test connectivity:
+
+\begin{lstlisting}[language=bash]
+ping -c 4 192.168.10.2
+\end{lstlisting}
+
+\section{Verify the X310 with UHD}
+
+Install UHD host utilities if necessary:
+
+\begin{lstlisting}[language=bash]
+sudo apt update
+sudo apt install uhd-host
+\end{lstlisting}
+
+Discover the radio:
+
+\begin{lstlisting}[language=bash]
+uhd_find_devices --args="addr=192.168.10.2"
+\end{lstlisting}
+
+For the present radio, the relevant output is:
+
+\begin{lstlisting}
+product: X310
+type: x300
+addr: 192.168.10.2
+fpga: HG
+\end{lstlisting}
+
+The value \texttt{type: x300} is the UHD family identifier used for both X300 and X310 devices.
+
+Probe the complete hardware configuration:
+
+\begin{lstlisting}[language=bash]
+uhd_usrp_probe --args="addr=192.168.10.2"
+\end{lstlisting}
+
+The expected TwinRX section contains:
+
+\begin{lstlisting}
+RX Dboard: TwinRX Rev C
+RX Frontend: 0  -> TwinRX RX0
+RX Frontend: 1  -> TwinRX RX1
+Sensors: lo_locked
+\end{lstlisting}
+
+Thus, one physical TwinRX daughterboard contains two receive front-ends/channels.
+
+\section{MATLAB software to use}
+
+For an X310, look for the following add-on in the MATLAB Add-On Explorer:
+
+\begin{center}
+\textbf{NI USRP Radio Support from Wireless Testbench}
+\end{center}
+
+The older \textbf{Communications Toolbox Support Package for USRP Radio} is not required for this X310 setup.
+
+Check installed support packages with:
+
+\begin{lstlisting}[language=Matlab]
+matlabshared.supportpkg.getInstalled
+\end{lstlisting}
+
+The installed package should include something similar to:
+
+\begin{lstlisting}
+Wireless Testbench Support Package for NI USRP Radios
+\end{lstlisting}
+
+\section{MATLAB Radio Setup Wizard}
+
+Open the radio setup workflow from MATLAB and configure the radio as an X310 with:
+
+\begin{itemize}[leftmargin=*]
+    \item Slot A: TwinRX;
+    \item Slot B: None;
+    \item network interface: 1 Gigabit Ethernet;
+    \item X310 address: \texttt{192.168.10.2}.
+\end{itemize}
+
+The antenna or RF front-end does not need to be connected merely to validate Ethernet and basic radio setup.
+
+\section{Clock source, time source, and LO source}
+
+These three settings have different purposes.
+
+\subsection{Clock source}
+
+The clock source provides the precision frequency reference used by the radio clocking and synthesizers.
+
+With an external 10~MHz reference connected to \texttt{REF IN}, use:
+
+\begin{lstlisting}
+Clock Source = external
+\end{lstlisting}
+
+The 10~MHz reference does not enter through an RF receive connector.
+
+\subsection{Time source}
+
+The time source establishes the timing reference for the radio time counter, typically through a 1~PPS signal.
+
+Because no external PPS is connected in the present setup, use:
+
+\begin{lstlisting}
+Time Source = internal
+\end{lstlisting}
+
+If a 1~PPS signal were connected to the X310 PPS input, \texttt{Time Source = external} could be used.
+
+\subsection{LO source}
+
+The LO is the RF local oscillator used by the mixer to translate the received RF signal to IF/baseband.
+
+With:
+
+\begin{lstlisting}
+Clock Source = external
+LO Source    = internal
+\end{lstlisting}
+
+the TwinRX uses its internal PLL/frequency synthesizer, but that synthesizer is referenced to the external 10~MHz signal. Conceptually:
+
+\begin{center}
+External 10~MHz $\rightarrow$ REF IN $\rightarrow$ internal PLL/synthesizer $\rightarrow$ RF LO $\rightarrow$ mixer
+\end{center}
+
+Setting \texttt{LO Source = external} would mean supplying the actual RF LO signal from an external RF generator. It does \emph{not} mean using the 10~MHz reference because it is not the correct frequency for the RF mixing stage.
+
+\section{Two-channel TwinRX tuning}
+
+TwinRX has two receive channels. Their LO configuration determines whether they can be tuned independently.
+
+\subsection{Same frequency with phase coherence}
+
+For two channels receiving the same RF frequency with phase coherence, LO sharing can be used. One channel generates the LO and the other uses it as a \texttt{companion}.
+
+This is appropriate when both channels observe the same RF band and relative phase is important.
+
+\subsection{Different frequencies}
+
+For independent center frequencies, both channels must use independent internal LOs. In that case, do not enable TwinRX phase synchronization.
+
+For example:
+
+\begin{itemize}[leftmargin=*]
+    \item Channel 1: GPS L1 = 1575.42~MHz;
+    \item Channel 2: GPS L5 = 1176.45~MHz.
+\end{itemize}
+
+Because L1 and L5 are separated by about 399~MHz, they cannot be obtained from one shared analog LO using only a digital frequency offset. They require independent analog LO tuning.
+
+\section{Saved MATLAB radio configuration}
+
+The saved configuration used here is:
+
+\begin{lstlisting}
+"My USRP X310 (TwinRX, None)"
+\end{lstlisting}
+
+Display saved configurations with:
+
+\begin{lstlisting}[language=Matlab]
+radioConfigurations
+\end{lstlisting}
+
+Create the corresponding MATLAB radio object with:
+
+\begin{lstlisting}[language=Matlab]
+radio = radioConfigurations("My USRP X310 (TwinRX, None)");
+\end{lstlisting}
+
+For the present hardware configuration, the saved settings are expected to be:
+
+\begin{lstlisting}
+ClockSource: external
+TimeSource:  internal
+LOSource:    ["internal" "internal"]
+\end{lstlisting}
+
+\section{Check the external 10 MHz reference in MATLAB}
+
+Check whether the X310 has locked to the external reference:
+
+\begin{lstlisting}[language=Matlab]
+referenceLockedStatus(radio)
+\end{lstlisting}
+
+A correct result is:
+
+\begin{lstlisting}
+ans =
+  logical
+   1
+\end{lstlisting}
+
+This confirms that the external 10~MHz source connected to \texttt{REF IN} is being used successfully.
+
+\section{MATLAB LO-lock validation issue with TwinRX}
+
+In this setup, MATLAB may report:
+
+\begin{lstlisting}
+Cannot detect LO locked sensor on this radio.
+\end{lstlisting}
+
+This can happen even when both TwinRX LOs are actually locked.
+
+The LO sensors can be located directly in the UHD RFNoC property tree with:
+
+\begin{lstlisting}[language=bash]
+uhd_usrp_probe --args="addr=192.168.10.2" --tree | grep lo_locked
+\end{lstlisting}
+
+For this X310, the paths are (the exact path may vary with UHD version):
+
+\begin{lstlisting}
+/blocks/0/Radio#0/dboard/rx_frontends/0/sensors/lo_locked
+/blocks/0/Radio#0/dboard/rx_frontends/1/sensors/lo_locked
+\end{lstlisting}
+
+Check channel 0:
+
+\begin{lstlisting}[language=bash]
+uhd_usrp_probe \
+  --args="addr=192.168.10.2" \
+  --sensor="/blocks/0/Radio#0/dboard/rx_frontends/0/sensors/lo_locked"
+\end{lstlisting}
+
+Check channel 1:
+
+\begin{lstlisting}[language=bash]
+uhd_usrp_probe \
+  --args="addr=192.168.10.2" \
+  --sensor="/blocks/0/Radio#0/dboard/rx_frontends/1/sensors/lo_locked"
+\end{lstlisting}
+
+For a healthy configuration, both commands return:
+
+\begin{lstlisting}
+true
+\end{lstlisting}
+
+Therefore, when MATLAB reports that it cannot \emph{detect} the LO-lock sensor while UHD reports \texttt{true} for both channels, the problem is with MATLAB's sensor-enumeration path rather than the TwinRX PLLs themselves.
+
+\section{RFNoC warnings seen with the Wireless Testbench FPGA image}
+
+When probing the radio from the system UHD installation, warnings such as the following may appear:
+
+\begin{lstlisting}
+[WARNING] [RFNOC::BLOCK_FACTORY]
+Could not find block with Noc-ID ...
+\end{lstlisting}
+
+The radio can still enumerate normally, and standard blocks such as the DDCs, DUCs, radios, replay block, and TwinRX daughterboard can remain visible. In the present setup, these warnings have not prevented successful communication with the X310 or access to the TwinRX LO-lock sensors.
+
+\section{Minimal MATLAB capture: L1 on one channel and L5 on the other}
+
+The following script uses the saved X310 configuration and independently tunes the two TwinRX receive channels to GPS L1 and GPS L5.
+
+\begin{lstlisting}[language=Matlab]
+clear; clc;
+
+radio = radioConfigurations("My USRP X310 (TwinRX, None)");
+
+fL1 = 1575.42e6;
+fL5 = 1176.45e6;
+
+rx = basebandReceiver(radio, ...
+    Antennas=["RFA:TX/RX","RFA:RX2"], ...
+    CenterFrequency=[fL1 fL5], ...
+    SampleRate=2e6, ...
+    RadioGain=[1 1]);
+
+[data,~] = capture(rx,milliseconds(10));
+
+L1 = data(:,1);
+L5 = data(:,2);
+\end{lstlisting}
+
+The mapping is:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+TwinRX path & Frequency & MATLAB samples \\
+\midrule
+\texttt{RFA:TX/RX} & GPS L1, 1575.42~MHz & \texttt{data(:,1)} \\
+\texttt{RFA:RX2} & GPS L5, 1176.45~MHz & \texttt{data(:,2)} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Because both LO sources are internal, the two channels can be tuned independently. Both internal synthesizers still benefit from the common external 10~MHz reference because \texttt{ClockSource = external}.
+
+\section{Recommended final configuration}
+
+For the current L1/L5 dual-frequency use case:
+
+\begin{lstlisting}
+Host Ethernet IP:   192.168.10.1/24
+X310 IP:            192.168.10.2
+Ethernet:           1 GbE, port 0
+MTU:                1500
+
+Clock Source:       external
+Time Source:        internal
+LO Source RX0:      internal
+LO Source RX1:      internal
+
+TwinRX RX0:         GPS L1 = 1575.42 MHz
+TwinRX RX1:         GPS L5 = 1176.45 MHz
+\end{lstlisting}
+
+This configuration gives independent L1/L5 tuning while keeping both LO synthesizers referenced to the same precision external 10~MHz source.
+
+\end{document}
