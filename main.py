@@ -1,8 +1,7 @@
 """Record I/Q samples from the USRP X310 + TwinRX to SigMF files.
 
 One recording per channel: <name>_ch<k>.sigmf-data (interleaved int16 I/Q,
-little-endian) + <name>_ch<k>.sigmf-meta (JSON). Defaults reproduce the MATLAB
-setup in coleta_dados_v3.m: GPS L1 on TwinRX RX0, GPS L5 on TwinRX RX1.
+little-endian) + <name>_ch<k>.sigmf-meta (JSON).
 """
 
 import argparse
@@ -18,20 +17,28 @@ SUBDEV = "A:0 A:1"  # TwinRX RX0 and RX1 on daughterboard slot A
 START_DELAY = 0.5  # s, lets both channels start on the same sample
 LOCK_TIMEOUT = 5.0  # s
 LINK_LIMIT = 100e6  # B/s, practical payload limit of 1 GbE
+GPS_L1_FREQ = 1575.42e6  # Hz
+GPS_L5_FREQ = 1176.45e6  # Hz
 
 
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--args", default="addr=192.168.10.2", help="UHD device args")
-    p.add_argument("--freq", type=float, nargs="+", default=[1575.42e6, 1176.45e6],
-                   help="center frequency per channel [Hz]")
-    p.add_argument("--rate", type=float, default=2e6, help="sample rate [S/s]")
-    p.add_argument("--gain", type=float, nargs="+", default=[1.0], help="gain [dB], one value or one per channel")
-    p.add_argument("--duration", type=float, default=10.0, help="recording length [s]")
-    p.add_argument("--channels", type=int, nargs="+", default=[0, 1], help="channel indices (0=RX0, 1=RX1)")
-    p.add_argument("--clock-source", default="external", help="10 MHz reference: external | internal")
-    p.add_argument("--time-source", default="internal", help="PPS source: internal | external")
-    p.add_argument("--out-dir", type=Path, default=Path("recordings"))
+    p.add_argument("--args", default="addr=192.168.10.2", help="UHD device args (default: addr=192.168.10.2)")
+    p.add_argument("--freq", type=float, nargs="+", default=[GPS_L1_FREQ, GPS_L5_FREQ],
+                   help=f"center frequency per channel [Hz] (default: {GPS_L1_FREQ / 1e6:g}e6 "
+                        f"{GPS_L5_FREQ / 1e6:g}e6, i.e. GPS L1 and L5)")
+    p.add_argument("--rate", type=float, default=2e6, help="sample rate [S/s] (default: 2e6)")
+    p.add_argument("--gain", type=float, nargs="+", default=[1.0],
+                   help="gain [dB], one value or one per channel (default: 1.0)")
+    p.add_argument("--duration", type=float, default=300.0, help="recording length [s] (default: 300.0)")
+    p.add_argument("--channels", type=int, nargs="+", default=[0, 1],
+                   help="channel indices (0=RX0, 1=RX1) (default: 0 1)")
+    p.add_argument("--clock-source", default="external",
+                   help="10 MHz reference: external | internal (default: external)")
+    p.add_argument("--time-source", default="internal",
+                   help="PPS source: internal | external (default: internal)")
+    p.add_argument("--out-dir", type=Path, default=Path("recordings"),
+                   help="output directory (default: recordings)")
     p.add_argument("--name", default=None, help="file prefix (default: UTC timestamp)")
     args = p.parse_args()
 

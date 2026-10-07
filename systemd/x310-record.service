@@ -1,0 +1,14 @@
+[Unit]
+Description=USRP X310 scheduled I/Q recording (max 2/day, 16:00-18:00 local time only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=tapyu
+Group=tapyu
+# Creates/owns /var/lib/x310-recorder (count files + lock), exposed to the
+# script as $STATE_DIRECTORY.
+StateDirectory=x310-recorder
+WorkingDirectory=/home/tapyu/git/usrp-x310
+ExecStart=/home/tapyu/git/usrp-x310/systemd/x310-record.sh
