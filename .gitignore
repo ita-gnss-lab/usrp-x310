@@ -533,3 +533,6 @@ pyrightconfig.json
 # I/Q recordings
 recordings/
 *.sigmf-data
+
+# transient WhatsApp pairing QR
+whatsapp_qr.png
