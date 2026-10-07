@@ -1,7 +1,14 @@
 [project]
 name = "usrp-x310"
 version = "0.1.0"
-description = "Add your description here"
+description = "USRP X310 + TwinRX I/Q recorder (UHD, SigMF output)"
 readme = "README.md"
-requires-python = ">=3.10"
-dependencies = []
+# Must match the system Python that python3-uhd (apt) is built for
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # Keep ABI parity with the system numpy that python3-uhd was built against
+    "numpy>=1.26,<2",
+]
+
+[tool.uv]
+python-preference = "only-system"
