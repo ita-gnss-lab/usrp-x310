@@ -24,6 +24,14 @@ GPS_L5_FREQ = 1176.45e6  # Hz
 SAMPLE_TYPE = "sc16"  # UHD OTW/CPU format: signed complex 16-bit samples (I+Q); matches SigMF's ci16_le
 SAMPLE_TYPE_DESC = "signed complex 16-bit samples (I+Q), little-endian"  # for the metadata
 BYTES_PER_SAMPLE = 4  # 16 bits I + 16 bits Q = 32 bits = 4 bytes
+'''
+GPS L1 at the antenna is roughly -130 dBm. But at this power level the signal itself is irrelevant to gain-setting — it's 15-20 dB below the thermal noise floor regardless, so GNSS gain-setting is really about placing the noise floor correctly in the ADC's dynamic range, not the signal.
+
+Noise floor in your 2 MHz bandwidth: kTB = -174 dBm/Hz + 10·log₁₀(2×10⁶) ≈ -111 dBm, before your LNA.
+
+After your 20 dB LNA (ignoring its own noise figure, typically <1.5 dB for a decent GNSS LNA): noise floor at the USRP's input ≈ -91 dBm.
+'''
+DEFAULT_GAIN_DB = 20
 
 
 def parse_args():
@@ -33,8 +41,8 @@ def parse_args():
                    help=f"center frequency per channel [Hz] (default: {GPS_L1_FREQ / 1e6:g}e6 "
                         f"{GPS_L5_FREQ / 1e6:g}e6, i.e. GPS L1 and L5)")
     p.add_argument("--iq-rate", type=float, default=2e6, help="sample rate [S/s] at which the IQ samples are recorded (default: 2e6)")
-    p.add_argument("--gain", type=float, nargs="+", default=[1.0],
-                   help="gain [dB], one value or one per channel (default: 1.0)")
+    p.add_argument("--gain", type=float, nargs="+", default=[DEFAULT_GAIN_DB],
+                   help="gain [dB], one value or one per channel (default: {DEFAULT_GAIN_DB})")
     p.add_argument("--duration", type=float, default=300.0, help="recording length [s] (default: 300.0)")
     p.add_argument("--channels", type=int, nargs="+", default=[0, 1],
                    help="channel indices (0=RX0, 1=RX1) (default: 0 1)")
