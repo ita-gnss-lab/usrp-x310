@@ -1,0 +1,93 @@
+\documentclass{article}
+\input{default_preamble.tex}
+
+\usetikzlibrary{calendar}
+
+\makeatletter%
+\tikzoption{day headings}{\tikzstyle{day heading}=[#1]}
+\tikzstyle{day heading}=[]
+\tikzstyle{day letter headings}=[
+    execute before day scope={ \ifdate{day of month=1}{%
+      \pgfmathsetlength{\pgf@ya}{\tikz@lib@cal@yshift}%
+      \pgfmathsetlength\pgf@xa{\tikz@lib@cal@xshift}%
+      \pgftransformyshift{-\pgf@ya}
+      \foreach \d/\l in {0/M,1/T,2/W,3/T,4/F,5/S,6/S} {
+        \pgf@xa=\d\pgf@xa%
+        \pgftransformxshift{\pgf@xa}%
+        \pgftransformyshift{\pgf@ya}%
+        \node[every day,day heading]{\l};%
+      } 
+    }{}%
+  }%
+]
+\input{default_glossary_entries.tex}
+\title{USRP X310 Data Recording Report}
+\author[1]{Rubem Vasconcelos Pacelli}
+\affil[1]{Aeronautics Institute of Technology (ITA)}
+\date{Last update: \today}
+
+% \makeglossaries
+
+\begin{document}
+\maketitle
+
+\abstract{This report describes the data recording process using the USRP X310 device. This reciver is placed in a fixed position in São José dos Campos, SP, Brazil, in the GPS/GNSS Laboratory at \gls{ita}\footnote{\url{https://github.com/ita-gnss-lab}}. The present report is updated as new recordings are made and new information is available.}
+
+\section{Overview of the recordings}
+
+The recording is computed automatically by a Linux service which is driven by the following guidelines:
+\begin{itemize}
+    \item Everyday, the program will start within the time rage [4PM, 6PM]
+    \item It will sense whether the USRP is detectable via \texttt{uhd\_find\_devices --args=``addr=192.168.10.2''}.
+    \item If not found, it will exit silently and will sense again in intervals of 15 min.
+    \item Once found, a SigMF file will be created from the recording, with the interleaved I/Q samples + metadata, like number of channels (dual channel recording), frequency (L1 and L5), sampling rate (2MHz), sample type (signed 16-bit int), etc.
+    \item Each record lasts 5 minutes (300 s)
+    \item It will record a second time within the same range and 30 min after the first record, and then it will not record anymore for that day.
+    \item After 15 days of records from the last report. Rubem will send an automatic message to header of the Laboratory, Prof. Dr. Felix Antreich, via WhatsApp with the summarized information from all recorded metadata;
+\end{itemize}
+
+\begin{table}[H]
+  \centering
+  \begin{tabular}{ccc}
+    \begin{tikzpicture}[day xshift=3ex, day yshift=3ex]
+    % month title and weekday-initials header, placed manually (one calendar
+    % "row" apart each) since the built-in month label collides with a header row
+    \calendar[dates=2026-10-01 to 2026-10-last,
+        week list,
+        month label above centered,
+        day xshift = 0.6cm,
+        day headings=orange,
+        day letter headings,
+        execute before day scope={%
+          \ifdate{equals=2026-10-07}{%
+            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
+          \ifdate{equals=2026-10-10}{%
+            \tikzset{every day/.append style={fill=blue!40, shape=rectangle, inner sep=2pt}}%
+          }{}%
+        },
+        execute after day scope={%
+          \ifdate{equals=2026-10-07}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+          \ifdate{equals=2026-10-10}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+        }]
+        ;
+    %   if (Sunday) [red]
+    %   if (Saturday) [red];
+  \end{tikzpicture}
+  &
+  % PLACEHOLDER
+  &
+  % PLACEHOLDER
+  \\[2ex]
+  \end{tabular}
+  \caption{Recording calendar. \textcolor{green}{Green}: 2 recordings made; \textcolor{blue}{blue}: 1 recording made. No color: no recording made.}
+\end{table}
+
+
+% \printbibliography
+% \printglossaries % to print the glossary, add `automake` as the fist option in the `glossaries-extra` pkg import (see the `default_preamble.tex` file)
+\end{document}

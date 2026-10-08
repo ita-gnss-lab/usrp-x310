@@ -1,0 +1,2058 @@
+% to sort it, run `f=my_glossary_entries.tex; { head -n 3 "$f"; tail -n +4 "$f" | awk '{ gsub(/^}$/,"}\0"); print $0 }' | sort -z | tr -d '\0' | tail -n +2; } | sponge "$f"`
+% inspired by https://stackoverflow.com/a/67012044/23333162 (but modified by me)	
+% `sponge` command requires the `moreutils` package
+\newglossaryentry{rtl}{
+  type=\acronymtype,
+  name={RTL},
+  description={Register-transfer level},
+  first={register-transfer level (RTL)},
+  sort={RTL},
+  long={register-transfer level},
+  short={RTL},
+}
+\newglossaryentry{ttm}{
+    type=\acronymtype,
+    name={TTM},
+    description={Tensor-times-matrix},
+    first={tensor-times-matrix (TTM)},
+    sort={TTM},
+    long={tensor-times-matrix},
+    short={TTM},
+}
+\newglossaryentry{bic}{
+  type=\acronymtype,
+  name={BIC},
+  description={Bayesian information criterion},
+  first={Bayesian information criterion (BIC)},
+  sort={BIC},
+  long={Bayesian information criterion},
+  short={BIC},
+}
+\newglossaryentry{sbc_sbi}{
+  type=\acronymtype,
+  name={SBC},
+  description={Simulator-Based Calibration},
+  first={Simulator-Based Calibration (SBC)},
+  sort={SBC},
+  long={Simulator-Based Calibration},
+  longplural={},
+  short={SBC},
+}
+\newglossaryentry{igs}{
+  type=\acronymtype,
+  name={IGS},
+  description={International GNSS Service},
+  first={International GNSS Service (IGS)},
+  sort={IGS},
+  long={International GNSS Service},
+  short={IGS},
+}
+\newglossaryentry{vhdl}{
+  type=\acronymtype,
+  name={VHDL},
+  description={VHSIC Hardware Description Language},
+  first={VHDL (VHSIC Hardware Description Language)},
+  sort={VHDL},
+  long={VHSIC Hardware Description Language},
+  short={VHDL},
+}
+\newglossaryentry{hdl}{
+  type=\acronymtype,
+  name={HDL},
+  description={Hardware Description Language},
+  first={HDL (Hardware Description Language)},
+  sort={HDL},
+  long={Hardware Description Language},
+  short={HDL},
+}
+\newglossaryentry{ptp}{
+  name={PtP},
+  plural={PtPs},
+  text={PtP},
+  first={Point-to-Point (PtP)},
+  description={Point-to-Point},
+  sort={PtP}
+}
+\newglossaryentry{gmsk}{
+  type=\acronymtype,
+  name={GMSK},
+  description={Gaussian minimum shift keying},
+  first={GMSK (Gaussian minimum shift keying)},
+  sort={GMSK},
+  long={Gaussian minimum shift keying},
+  longplural={},
+  short={GMSK},
+}
+\newglossaryentry{cfo}{
+  type=\acronymtype,
+  name={CFO},
+  description={Carrier frequency offset},
+  first={carrier frequency offset (CFO)},
+  sort={CFO},
+  long={carrier frequency offset},
+  longplural={},
+  short={CFO},
+}
+\newglossaryentry{ofdm}{
+  type=\acronymtype,
+  name={OFDM},
+  description={Orthogonal frequency-division multiplexing},
+  first={orthogonal frequency-division multiplexing (OFDM)},
+  sort={OFDM},
+  long={orthogonal frequency-division multiplexing},
+  short={OFDM},
+}
+\newglossaryentry{glonass}{
+  type=\acronymtype,
+  name={GLONASS},
+  description={Global Navigation Satellite System from Russia (Glonass - Globalnaya Navigazionnaya Sputnikovaya Sistema)},
+  first={GLONASS (from Russian, \textit{Globalnaya Navigazionnaya Sputnikovaya})},
+  sort={GLONASS},
+  long={Global Navigation Satellite System},
+  longplural={},
+  short={GLONASS},
+}
+\newglossaryentry{npe}{
+  type=\acronymtype,
+  name={NPE},
+  description={Neural Posterior Estimator},
+  first={Neural Posterior Estimator (NPE)},
+  sort={NPE},
+  long={Neural Posterior Estimator},
+  longplural={},
+  short={NPE},
+}
+\newglossaryentry{bifpn}{
+  type=\acronymtype,
+  name={BiFPN},
+  description={Bidirectional feature pyramid network},
+  first={bidirectional feature pyramid network (BiFPN)},
+  sort={BiFPN},
+  long={bidirectional feature pyramid network},
+  longplural={bidirectional feature pyramid networks},
+  short={BiFPN},
+}
+\newglossaryentry{mbconv}{
+  type=\acronymtype,
+  name={MBConv},
+  description={Mobile inverted bottleneck convolution},
+  first={mobile inverted bottleneck convolution (MBConv)},
+  sort={MBConv},
+  long={mobile inverted bottleneck convolution},
+  longplural={mobile inverted bottleneck convolutions},
+  short={MBConv},
+}
+\newglossaryentry{sbi}{
+  type=\acronymtype,
+  name={SBI},
+  description={Simulator-Based Inference},
+  first={Simulator-Based Inference (SBI)},
+  sort={SBI},
+  long={Simulator-Based Inference},
+  longplural={},
+  short={SBI},
+}
+\newglossaryentry{mape}{
+  type=\acronymtype,
+  name={MAPE},
+  description={Mean Absolute Percentage Error},
+  first={Mean Absolute Percentage Error (MAPE)},
+  sort={MAPE},
+  long={Mean Absolute Percentage Error},
+  longplural={},
+  short={MAPE},
+}
+\newglossaryentry{mae}{
+  type=\acronymtype,
+  name={MAE},
+  description={Mean Absolute Error},
+  first={Mean Absolute Error (MAE)},
+  sort={MAE},
+  long={Mean Absolute Error},
+  longplural={},
+  short={MAE},
+}
+\newglossaryentry{xgb}{
+  type=\acronymtype,
+  name={XGB},
+  description={Extreme Gradient Boosting},
+  first={Extreme Gradient Boosting (XGB)},
+  sort={XGB},
+  long={Extreme Gradient Boosting},
+  longplural={},
+  short={XGB},
+}
+\newglossaryentry{lse}{
+  type=\acronymtype,
+  name={LSE},
+  description={Least squares Error},
+  first={Least Squares Error (LSE)},
+  sort={LSE},
+  long={least squares error},
+  longplural={},
+  short={LSE},
+}
+\newglossaryentry{hpo}{
+  type=\acronymtype,
+  name={HPO},
+  description={Hyperparameter optimization},
+  first={hyperparameter optimization (HPO)},
+  sort={HPO},
+  long={Hyperparameter Optimization},
+  longplural={},
+  short={HPO},
+}
+\newglossaryentry{rft}{
+  type=\acronymtype,
+  name={RFT},
+  description={Random Forest Tree},
+  first={Random Forest Tree (RFT)},
+  sort={RFT},
+  long={Random Forest Tree},
+  longplural={},
+  short={RFT},
+}
+\newglossaryentry{mten}{
+  type=\acronymtype,
+  name={MTEN},
+  description={Multi-task ElasticNet},
+  first={Multi-task ElasticNet (MTEN)},
+  sort={MTEN},
+  long={Multi-task ElasticNet},
+  longplural={},
+  short={MTEN},
+}
+\newglossaryentry{igrf}{
+    type=\acronymtype,
+    name={IGRF},
+    description={International geomagnetic reference field},
+    first={International geomagnetic reference field (IGRF)},
+    sort={IGRF},
+    long={International Geomagnetic Reference Field},
+    longplural={},
+    short={IGRF},
+}
+\newglossaryentry{aacgm}{
+    type=\acronymtype,
+    name={AACGM},
+    description={Altitude-adjusted corrected geomagnetic coordinate},
+    first={altitude-adjusted corrected geomagnetic coordinate (AACGM)},
+    sort={AACGM},
+    long={altitude-adjusted corrected geomagnetic coordinate},
+    longplural={},
+    short={AACGM},
+}
+\newglossaryentry{wbmod}{
+  type=\acronymtype,
+  name={WBMOD},
+  description={WideBand MODel},
+  first={WideBand MODel (WBMOD)},
+  sort={WBMOD},
+  long={WideBand MODel},
+  %   plural={},
+  short={WBMOD}
+}
+\newglossaryentry{nwra}{
+  type=\acronymtype,
+  name={NWRA},
+  description={NewWest Research Associates},
+  first={NewWest Research Associates (NWRA)},
+  sort={NWRA},
+  long={NewWest Research Associates},
+  %   plural={},
+  short={NWRA}
+}
+\newglossaryentry{dvc}{
+  type=\acronymtype,
+  name={DVC},
+  description={Data Version Control},
+  first={Data Version Control (DVC)},
+  sort={DVC},
+  long={Data Version Control},
+  longplural={},
+  short={DVC},
+}
+\newglossaryentry{tcn}{
+  type=\acronymtype,
+  name={TCN},
+  description={Temporal convolutional network},
+  first={temporal convolutional network (TCN)},
+  sort={TCN},
+  long={temporal convolutional network},
+  longplural={},
+  short={TCN},
+}
+\newglossaryentry{ipe}{
+  type=\acronymtype,
+  name={IPE},
+  description={Irregularity parameter estimation},
+  first={irregularity parameter estimation (IPE)},
+  sort={IPE},
+  long={irregularity parameter estimation},
+  longplural={},
+  short={IPE},
+}
+\newglossaryentry{sar}{
+  type=\acronymtype,
+  name={SAR},
+  description={Synthetic aperture radar},
+  first={synthetic aperture radar (SAR)},
+  sort={SAR},
+  long={synthetic aperture radar},
+  longplural={},
+  short={SAR},
+}
+\newglossaryentry{nwpr}{
+  type=\acronymtype,
+  name={NWPR},
+  description={Narrowband-wideband power ratio},
+  first={narrowband-wideband power ratio (NWPR)},
+  sort={NWPR},
+  long={narrowband-wideband power ratio error},
+  longplural={},
+  short={NWPR},
+}
+\newglossaryentry{mrmse}{
+  type=\acronymtype,
+  name={MRMSE},
+  description={Mean root mean-squared error},
+  first={mean root mean-squared error (MRMSE)},
+  sort={MRMSE},
+  long={mean root mean-squared error},
+  longplural={},
+  short={MRMSE},
+}
+\newglossaryentry{rmse}{
+  type=\acronymtype,
+  name={RMSE},
+  description={Root mean-squared error},
+  first={root mean-squared error (RMSE)},
+  sort={RMSE},
+  long={root mean-squared error},
+  longplural={},
+  short={RMSE},
+}
+\newglossaryentry{prn}{
+  type=\acronymtype,
+  name={PRN},
+  description={Pseudo-random noise},
+  first={pseudo-random noise (PRN)},
+  sort={PRN},
+  long={pseudo-random noise},
+  longplural={},
+  short={PRN},
+}
+\newglossaryentry{ied}{
+  type=\acronymtype,
+  name={I\&D},
+  description={Integrate-and-dump},
+  first={integrate-and-dump (I\&D)},
+  sort={I\&D},
+  long={integrate-and-dump},
+  longplural={},
+  short={I\&D},
+}
+\newglossaryentry{bpf}{
+  type=\acronymtype,
+  name={BPF},
+  description={Band-pass filter},
+  first={band-pass filter (BPF)},
+  sort={BPF},
+  long={band-pass filter},
+  longplural={},
+  short={BPF},
+}
+\newglossaryentry{pwe}{
+  type=\acronymtype,
+  name={PWE},
+  description={Parabolic wave equation},
+  first={parabolic wave equation (PWE)},
+  sort={PWE},
+  long={parabolic wave equation},
+  longplural={},
+  short={PWE},
+}
+\newglossaryentry{sbc}{
+  type=\acronymtype,
+  name={SBC},
+  description={Schwarz Bayesian Criterion},
+  first={Schwarz Bayesian Criterion (SBC)},
+  sort={SBC},
+  long={Schwarz Bayesian Criterion},
+  longplural={},
+  short={SBC},
+}
+\newglossaryentry{cpssm}{
+  type=\acronymtype,
+  name={CPSSM},
+  description={Compact Phase-Screen-Based Scintillation Model},
+  first={Compact Phase-Screen-Based Scintillation Model (CPSSM)},
+  sort={CPSSM},
+  long={Compact Phase-Screen-Based Scintillation Model},
+  longplural={},
+  short={CPSSM},
+}
+\newglossaryentry{var}{
+  type=\acronymtype,
+  name={VAR},
+  description={Vector autoregressive},
+  first={vector autoregressive (VAR)},
+  sort={VAR},
+  long={vector autoregressive},
+  longplural={},
+  short={VAR},
+}
+\newglossaryentry{rv}{
+  type=\acronymtype,
+  name={r.v.},
+  description={Random variable},
+  first={random variable (r.v.)},
+  sort={r.v.},
+  long={random variable},
+  longplural={},
+  short={r.v.},
+}
+\newglossaryentry{ssm}{
+  type=\acronymtype,
+  name={SSM},
+  description={State-space model},
+  first={state-space model (SSM)},
+  sort={SSM},
+  long={state-space model},
+  longplural={},
+  short={SSM},
+}
+\newglossaryentry{sota}{
+  type=\acronymtype,
+  name={SOTA},
+  description={state of the art},
+  first={state of the art (SOTA)},
+  hyphenated={state-of-the-art (SOTA)},
+  sort={SOTA},
+  long={state of the art},
+  longplural={},
+  short={SOTA},
+}
+\newglossaryentry{olt}{
+  type=\acronymtype,
+  name={OLT},
+  description={Open-loop tracking},
+  first={open-loop tracking (OLT)},
+  sort={OLT},
+  long={open-loop tracking},
+  longplural={},
+  short={OLT},
+}
+\newglossaryentry{clt}{
+  type=\acronymtype,
+  name={CLT},
+  description={Closed-loop tracking},
+  first={closed-loop tracking (CLT)},
+  sort={CLT},
+  long={closed-loop tracking},
+  longplural={},
+  short={CLT},
+}
+\newglossaryentry{adam}{
+    type=\acronymtype,
+    name={ADAM},
+    description={Adaptive Moment Estimation},
+    first={adaptive moment estimation (ADAM)},
+    sort={ADAM},
+    long={adaptive moment estimation},
+    short={ADAM},
+}
+\newglossaryentry{hdf5}{
+    type=\acronymtype,
+    name={HDF5},
+    description={Hierarchical Data Format version 5},
+    first={Hierarchical Data Format version 5 (HDF5)},
+    sort={HDF5},
+    long={Hierarchical Data Format version 5},
+    short={HDF5},
+}
+\newglossaryentry{se}{
+    type=\acronymtype,
+    name={SE},
+    description={Standard error},
+    first={standard error (SE)},
+    sort={SE},
+    long={standard error},
+    short={SE},
+}
+\newglossaryentry{solt}{
+  type=\acronymtype,
+  name={SOLT},
+  description={Semi-open loop tracking},
+  first={semi-open loop tracking (SOLT)},
+  sort={SOLT},
+  long={semi-open loop tracking},
+  longplural={},
+  short={SOLT},
+}
+\newglossaryentry{vlt}{
+  type=\acronymtype,
+  name={VLT},
+  description={Vector tracking loop},
+  first={vector tracking loop (VLT)},
+  sort={VLT},
+  long={vector tracking loop},
+  longplural={},
+  short={VLT},
+}
+\newglossaryentry{fpf}{
+  type=\acronymtype,
+  name={FPF},
+  description={Fixed position feedback},
+  first={fixed position feedback (FPF)},
+  sort={FPF},
+  long={fixed position feedback},
+  longplural={},
+  short={FPF},
+}
+\newglossaryentry{tle}{
+  type=\acronymtype,
+  name={TLE},
+  description={Two-line element set},
+  first={two-line element set (TLE)},
+  sort={TLE},
+  long={two-line element set},
+  longplural={two-line element sets},
+  short={TLE},
+}
+\newglossaryentry{cddis}{
+    type=\acronymtype,
+    name={CDDIS},
+    description={Crustal Dynamics Data Information System},
+    first={Crustal Dynamics Data Information System (CDDIS)},
+    sort={CDDIS},
+    long={Crustal Dynamics Data Information System},
+    short={CDDIS},
+}
+\newglossaryentry{sp3}{
+  type=\acronymtype,
+  name={SP3},
+  description={Standard Product 3 format for precise satellite ephemerides},
+  first={Standard Product 3 (SP3) format for precise satellite ephemerides},
+  sort={SP3},
+  long={Standard Product 3 format},
+  longplural={},
+  short={SP3},
+}
+\newglossaryentry{bpsk}{
+  type=\acronymtype,
+  name={BPSK},
+  description={Binary phase-shift keying},
+  first={binary phase-shift keying (BPSK)},
+  sort={3D},
+  long={binary phase-shift keying},
+  longplural={},
+  short={3D},
+}
+\newglossaryentry{3d}{
+  type=\acronymtype,
+  name={3D},
+  description={Three-dimensional},
+  first={three-dimensional (3D)},
+  sort={3D},
+  long={three-dimensional},
+  longplural={},
+  short={3D},
+}
+\newglossaryentry{4d}{
+  type=\acronymtype,
+  name={4D},
+  description={Four-dimensional},
+  first={four-dimensional (4D)},
+  sort={4D},
+  long={four-dimensional},
+  longplural={},
+  short={4D},
+}
+\newglossaryentry{acf}{
+  type=\acronymtype,
+  name={ACF},
+  description={Autocorrelation function},
+  first={autocorrelation function (ACF)},
+  sort={ACF},
+  long={autocorrelation function},
+  short={ACF},
+}
+\newglossaryentry{adc}{
+  type=\acronymtype,
+  name={ADC},
+  description={Analog-to-digital converter},
+  first={analog-to-digital converter (ADC)},
+  sort={ADC},
+  long={analog-to-digital converter},
+  short={ADC},
+}
+\newglossaryentry{afsk}{
+  type=\acronymtype,
+  name={AFSK},
+  description={Audio frequency-shift keying},
+  first={audio frequency-shift keying (AFSK)},
+  sort={AFSK},
+  long={audio frequency-shift keying},
+  short={AFSK},
+}
+\newglossaryentry{agc}{
+  type=\acronymtype,
+  name={AGC},
+  description={Automatic gain control},
+  first={automatic gain control (AGC)},
+  sort={AGC},
+  long={automatic gain control},
+  short={AGC},
+}
+\newglossaryentry{ai}{
+  type=\acronymtype,
+  name={AI},
+  description={Artificial intelligence},
+  first={artificial intelligence (AI)},
+  sort={AI},
+  long={artificial intelligence},
+  plural={},
+  short={AI},
+}
+\newglossaryentry{akf}{
+  type=\acronymtype,
+  name={AKF},
+  description={Adaptive Kalman filter},
+  first={adaptive Kalman filter (AKF)},
+  sort={AKF},
+  long={adaptive Kalman filter},
+  short={AKF},
+}
+\newglossaryentry{altboc}{
+  type=\acronymtype,
+  name={AltBOC},
+  description={Alternative BOC},
+  first={alternative BOC (AltBOC)},
+  sort={AltBOC},
+  long={alternative BOC},
+  short={AltBOC},
+}
+\newglossaryentry{ann}{
+  type=\acronymtype,
+  name={ANN},
+  description={Artificial neural networks},
+  first={artificial neural networks (ANN)},
+  sort={ANN},
+  long={artificial neural networks},
+  plural={},
+  short={ANN},
+}
+\newglossaryentry{aoa}{
+  type=\acronymtype,
+  name={AoA},
+  description={Angle of arrival},
+  first={angle of arrival (AoA)},
+  sort={AoA},
+  long={angle of arrival},
+  short={AoA},
+}
+\newglossaryentry{ar}{
+  type=\acronymtype,
+  name={AR},
+  description={Autoregressive},
+  first={autoregressive (AR)},
+  sort={AR},
+  long={autoregressive},
+  plural={Autoregressive},
+  short={AR},
+}
+\newglossaryentry{asic}{
+  type=\acronymtype,
+  name={ASIC},
+  description={Application-specific integrated circuit},
+  first={application-specific integrated circuit (ASIC)},
+  sort={ASIC},
+  long={application-specific integrated circuit},
+  plural={ASICs},
+  short={ASIC},
+}
+\newglossaryentry{awgn}{
+  type=\acronymtype,
+  name={AWGN},
+  description={Additive white Gaussian noise},
+  first={additive white Gaussian noise (AWGN)},
+  sort={AWGN},
+  long={additive white Gaussian noise},
+  short={AWGN},
+}
+\newglossaryentry{bb}{
+  type=\acronymtype,
+  name={BB},
+  description={Baseband},
+  first={baseband (BB)},
+  sort={BB},
+  long={baseband},
+  short={BB},
+}
+\newglossaryentry{bcrb}{
+  type=\acronymtype,
+  name={BCRB},
+  description={Baysean Cramér-Rao bound},
+  first={Baysean Cramér-Rao bound (BCRB)},
+  sort={BCRB},
+  long={Baysean Cramér-Rao bound},
+  plural={},
+  short={BCRB},
+}
+\newglossaryentry{ber}{
+  type=\acronymtype,
+  name={BER},
+  description={Bit error rate},
+  first={bit error rate (BER)},
+  sort={BER},
+  long={bit error rate},
+  short={BER},
+}
+\newglossaryentry{boc}{
+  type=\acronymtype,
+  name={BOC},
+  description={Binary offset carrier},
+  first={binary offset carrier (BOC)},
+  sort={BOC},
+  long={binary offset carrier},
+  short={BOC},
+}
+\newglossaryentry{bpnn}{
+  type=\acronymtype,
+  name={BPNN},
+  description={Backpropagation neural network},
+  first={backpropagation neural network (BPNN)},
+  sort={BPNN},
+  long={backpropagation neural network},
+  plural={},
+  short={BPNN},
+}
+\newglossaryentry{ca}{
+  type=\acronymtype,
+  name={C/A},
+  description={Coarse/acquisition},
+  first={coarse/acquisition (C/A)},
+  sort={C/A},
+  long={coarse/acquisition},
+  short={C/A},
+}
+\newglossaryentry{daq}{
+  type=\acronymtype,
+  name={DAQ},
+  description={Data acquisition},
+  first={data acquisition (DAQ)},
+  sort={DAQ},
+  long={data acquisition},
+  short={DAQ},
+}
+\newglossaryentry{cdf}{
+  type=\acronymtype,
+  name={CDF},
+  description={Cumulative distribution function},
+  first={cumulative distribution function (CDF)},
+  firstplural={cumulative distribution functions (CDFs)},
+  sort={CDF},
+  long={cumulative distribution function},
+  plural={cumulative distribution functions},
+  short={CDF},
+}
+\newglossaryentry{cdma}{
+  type=\acronymtype,
+  name={CDMA},
+  description={Code division multiple access},
+  first={code division multiple access (CDMA)},
+  sort={CDMA},
+  long={code division multiple access},
+  short={CDMA},
+}
+\newglossaryentry{cn0}{
+  type=\acronymtype,
+  name={\(C/N_0\)},
+  description={Carrier-to-noise ratio},
+  first={carrier-to-noise ratio (\(C/N_0\))},
+  sort={C/N_0},
+  long={carrier-to-noise ratio},
+  short={\(C/N_0\)},
+}
+\newglossaryentry{dcnn}{
+  type=\acronymtype,
+  name={dCNN},
+  description={Dimension-wise convolutional neural network},
+  first={dimension-wise convolutional neural network (dCNN)},
+  sort={dCNN},
+  long={dimension-wise convolutional neural network},
+  longplural={dimension-wise convolutional neural networks},
+  short={dCNN},
+}
+\newglossaryentry{cnn}{
+  type=\acronymtype,
+  name={CNN},
+  description={Convolutional neural network},
+  first={convolutional neural network (CNN or ConvNet)},
+  firstplural={convolutional neural networks (CNNs or ConvNets)},
+  sort={CNN},
+  long={convolutional neural network},
+  longplural={convolutional neural networks},
+  short={CNN},
+}
+\newglossaryentry{tn}{
+  type=\acronymtype,
+  name={TN},
+  description={Tensor network},
+  first={tensor network (TN)},
+  sort={TN},
+  long={tensor network},
+  longplural={tensor networks},
+  short={TN},
+}
+\newglossaryentry{brnn}{
+  type=\acronymtype,
+  name={BRNN},
+  description={Bidirectional recurrent neural network},
+  first={bidirectional recurrent neural network (BRNN)},
+  sort={BRNN},
+  long={bidirectional recurrent neural network},
+  longplural={bidirectional recurrent neural networks},
+  short={BRNN},
+}
+\newglossaryentry{rnn}{
+  type=\acronymtype,
+  name={RNN},
+  description={Recurrent neural network},
+  first={recurrent neural network (RNN)},
+  sort={RNN},
+  long={recurrent neural network},
+  longplural={recurrent neural networks},
+  short={RNN},
+}
+\newglossaryentry{bptt}{
+  type=\acronymtype,
+  name={BPTT},
+  description={Backpropagation through time},
+  first={backpropagation through time (BPTT)},
+  sort={BPTT},
+  long={backpropagation through time},
+  longplural={Backpropagation through time},
+  short={BPTT},
+}
+\newglossaryentry{fcn}{
+  type=\acronymtype,
+  name={FCN},
+  description={Fully convolutional neural network},
+  first={fully convolutional neural network (FCN)},
+  sort={FCN},
+  long={fully convolutional neural network},
+  longplural={fully convolutional neural networks},
+  short={FCN},
+}
+\newglossaryentry{fc}{
+    type=\acronymtype,
+    name={FC},
+    description={Fully connected},
+    first={fully connected (FC)},
+    sort={FC},
+    long={fully connected},
+    short={FC},
+}
+\newglossaryentry{dcam}{
+    type=\acronymtype,
+    name={dCAM},
+    description={Dimension-wise class activation map},
+    first={dimension-wise class activation map (dCAM)},
+    sort={dCAM},
+    long={dimension-wise class activation map},
+    longplural={dimension-wise class activation maps},
+    short={dCAM},
+}
+\newglossaryentry{cnpq}{
+  type=\acronymtype,
+  name={CNPq},
+  description={National Council for Scientific and Technological Development},
+  first={National Council for Scientific and Technological Development (CNPq)},
+  sort={CNPq},
+  long={National Council for Scientific and Technological Development},
+  short={CNPq},
+}
+\newglossaryentry{cpfsk}{
+  type=\acronymtype,
+  name={CPFSK},
+  description={Continuous-phase frequency-shift keying},
+  first={continuous-phase frequency-shift keying (CPFSK)},
+  sort={CPFSK},
+  long={continuous-phase frequency-shift keying},
+  short={CPFSK},
+}
+\newglossaryentry{cpm}{
+  type=\acronymtype,
+  name={CPM},
+  description={Continuous-phase modulation},
+  first={continuous-phase modulation (CPM)},
+  sort={CPM},
+  long={continuous-phase modulation},
+  short={CPM},
+}
+\newglossaryentry{cpo}{
+  type=\acronymtype,
+  name={CPO},
+  description={Carrier phase offset},
+  first={carrier phase offset (CPO)},
+  sort={CPO},
+  long={carrier phase offset},
+  short={CPO},
+}
+\newglossaryentry{crb}{
+  type=\acronymtype,
+  name={CRB},
+  description={Cramér-Rao bound},
+  first={Cramér-Rao bound (CRB)},
+  sort={CRB},
+  long={Cramér-Rao bound},
+  plural={},
+  short={CRB},
+}
+\newglossaryentry{csk}{
+  type=\acronymtype,
+  name={CSK},
+  description={Code shift key},
+  first={code shift key (CSK)},
+  sort={CSK},
+  long={code shift key},
+  short={CSK},
+}
+\newglossaryentry{csm}{
+  type=\acronymtype,
+  name={CSM},
+  description={Cornell scintillation model},
+  first={Cornell scintillation model (CSM)},
+  sort={CSM},
+  long={Cornell scintillation model},
+  plural={Cornell Scintillation Model},
+  short={CSM},
+}
+\newglossaryentry{dae}{
+  type=\acronymtype,
+  name={DAE},
+  description={Differential-algebraic system of equations},
+  first={differential-algebraic system of equations (DAE)},
+  sort={DAE},
+  long={differential-algebraic system of equations},
+  short={DAE},
+}
+\newglossaryentry{dd}{
+  type=\acronymtype,
+  name={DD},
+  description={Decision-directed},
+  first={decision-directed (DD)},
+  sort={DD},
+  long={decision-directed},
+  short={DD},
+}
+\newglossaryentry{dfs}{
+  type=\acronymtype,
+  name={DFS},
+  description={Discrete Fourier series},
+  first={discrete Fourier series (DFS)},
+  sort={DFS},
+  long={discrete Fourier series},
+  longplural={},
+  short={DFS},
+}
+\newglossaryentry{dft}{
+  type=\acronymtype,
+  name={DFT},
+  description={Discrete Fourier transform},
+  first={discrete Fourier transform (DFT)},
+  sort={DFT},
+  firstplural = {discrete Fourier transforms (DFTs)},
+  plural = {DFTs},
+  long={discrete Fourier transform},
+  longplural={},
+  short={DFT},
+}
+\newglossaryentry{dgnss}{
+  type=\acronymtype,
+  name={DGNSS},
+  description={Differential GNSS},
+  first={differential GNSS (DGNSS)},
+  sort={DGNSS},
+  long={differential GNSS},
+  short={DGNSS},
+}
+\newglossaryentry{dll}{
+  type=\acronymtype,
+  name={DLL},
+  description={Delay-locked loop},
+  first={delay-locked loop (DLL)},
+  firstplural={delay-locked loops (DLLs)},
+  sort={DLL},
+  long={delay-locked loop},
+  longplural={delay-locked loops},
+  short={DLL},
+}
+\newglossaryentry{dl}{
+  type=\acronymtype,
+  name={DL},
+  description={Deep learning},
+  first={deep learning (DL)},
+  sort={DL},
+  long={deep learning},
+  short={DL},
+}
+\newglossaryentry{dnn}{
+  type=\acronymtype,
+  name={DNN},
+  description={Deep neural network},
+  first={deep neural network (DNN)},
+  firstplural={deep neural networks (DNNs)},
+  sort={DNN},
+  long={deep neural network},
+  longplural={deep neural networks},
+  short={DNN},
+  shortplural={DNNs},
+}
+\newglossaryentry{dtw}{
+  type=\acronymtype,
+  name={DTW},
+  description={Dynamic time warping},
+  first={dynamic time warping (DTW)},
+  sort={DTW},
+  long={dynamic time warping},
+  plural={application-specific integrated circuits},
+  short={DTW},
+}
+\newglossaryentry{gru}{
+  type=\acronymtype,
+  name={GRU},
+  description={Gated recurrent unit},
+  first={gated recurrent unit (GRU)},
+  sort={GRU},
+  long={gated recurrent unit},
+  longplural={gated recurrent units},
+  short={GRU},
+}
+\newglossaryentry{cam}{
+    type=\acronymtype,
+    name={CAM},
+    description={Class activation map},
+    first={class activation map (CAM)},
+    firstplural={class activation maps (CAMs)},
+    sort={CAM},
+    long={class activation map},
+    longplural={class activation maps},
+    short={CAM},
+}
+\newglossaryentry{ekf}{
+  type=\acronymtype,
+  name={EKF},
+  description={Extended Kalman filter},
+  first={extended Kalman filter (EKF)},
+  sort={EKF},
+  long={extended Kalman filter},
+  short={EKF},
+}
+\newglossaryentry{esa}{
+  type=\acronymtype,
+  name={ESA},
+  description={European space agency},
+  first={European Space Agency (ESA)},
+  sort={ESA},
+  long={European space agency},
+  plural={},
+  short={ESA}
+}
+\newglossaryentry{euv}{
+  type=\acronymtype,
+  name={EUV},
+  description={Extreme ultraviolet},
+  first={extreme ultraviolet (EUV)},
+  sort={EUV},
+  long={extreme ultraviolet},
+  short={EUV},
+}
+\newglossaryentry{evd}{
+  type=\acronymtype,
+  name={EVD},
+  description={Eigenvalue decomposition},
+  first={eigenvalue decomposition (EVD)},
+  sort={EVD},
+  long={eigenvalue decomposition},
+  short={EVD},
+}
+\newglossaryentry{fft}{
+  type=\acronymtype,
+  name={FFT},
+  description={Fast Fourier transform},
+  first={fast Fourier transform (FFT)},
+  sort={FFT},
+  long={fast Fourier transform},
+  longplural={},
+  short={FFT},
+}
+\newglossaryentry{fir}{
+  type=\acronymtype,
+  name={FIR},
+  description={Finite impulse response},
+  first={finite impulse response (FIR)},
+  sort={FIR},
+  long={finite impulse response},
+  short={FIR},
+}
+\newglossaryentry{fll}{
+  type=\acronymtype,
+  name={FLL},
+  description={Frequency-locked loop},
+  first={frequency-locked loop (FLL)},
+  firstplural={frequency-locked loops (FLLs)},
+  sort={FLL},
+  long={frequency-locked loop},
+  longplural={frequency-locked loops},
+  plural={FLLs},
+  short={FLL},
+}
+\newglossaryentry{gap}{
+    type=\acronymtype,
+    name={GAP},
+    description={Global average pooling},
+    first={global average pooling (GAP)},
+    sort={GAP},
+    long={global average pooling},
+    longplural={global average poolings},
+    short={GAP},
+}
+\newglossaryentry{fpga}{
+  type=\acronymtype,
+  name={FPGA},
+  description={Field programmable gate array},
+  first={field programmable gate array (FPGA)},
+  sort={FPGA},
+  long={field programmable gate array},
+  short={FPGA},
+}
+\newglossaryentry{fs}{
+  type=\acronymtype,
+  name={FS},
+  description={Fourier series},
+  first={Fourier series (FS)},
+  sort={FS},
+  long={Fourier series},
+  longplural={},
+  short={FS},
+}
+\newglossaryentry{ft}{
+  type=\acronymtype,
+  name={FT},
+  description={Fourier transform},
+  first={Fourier transform (FT)},
+  sort={FT},
+  long={Fourier transform},
+  longplural={},
+  short={FT},
+}
+\newglossaryentry{geo}{
+  type=\acronymtype,
+  name={GEO},
+  description={Geostationary Earth orbit},
+  first={geostationary Earth orbit (GEO)},
+  sort={GEO},
+  long={geostationary Earth orbit},
+  short={GEO},
+}
+\newglossaryentry{gism}{
+  type=\acronymtype,
+  name={GISM},
+  description={Global ionospheric scintillation model},
+  first={global ionospheric scintillation model (GISM)},
+  sort={GISM},
+  long={global ionospheric scintillation model},
+  short={GISM},
+}
+\newglossaryentry{gistm}{
+  type=\acronymtype,
+  name={GISTM},
+  description={GNSS ionospheric scintillation and TEC monitors},
+  first={GNSS ionospheric scintillation and TEC monitors (GISTM)},
+  firstplural={GNSS ionospheric scintillation and TEC monitors (GISTMs)},
+  sort={GISTM},
+  long={GNSS ionospheric scintillation and TEC monitors},
+  short={GISTM},
+}
+\newglossaryentry{gnss}{
+  type=\acronymtype,
+  name={GNSS},
+  description={Global navigation satellite systems},
+  first={global navigation satellite systems (GNSS)},
+  sort={GNSS},
+  long={global navigation satellite systems},
+  short={GNSS},
+}
+\newglossaryentry{gps}{
+  type=\acronymtype,
+  name={GPS},
+  description={Global Positioning System},
+  first={GPS (Global Positioning System)},
+  sort={GPS},
+  long={Global Positioning System},
+  short={GPS},
+}
+\newglossaryentry{ha}{
+  type=\acronymtype,
+  name={HA},
+  description={High accuracy},
+  first={high accuracy (HA)},
+  sort={HA},
+  long={high accuracy},
+  short={HA},
+}
+\newglossaryentry{hil}{
+  type=\acronymtype,
+  name={HIL},
+  description={Hardware-in-the-loop},
+  first={hardware-in-the-loop (HIL)},
+  sort={HIL},
+  long={hardware-in-the-loop},
+  short={HIL},
+}
+\newglossaryentry{iff}{
+  type=\acronymtype,
+  name={iff},
+  description={If and only if},
+  first={if and only if (iff)},
+  sort={iff},
+  long={if and only if},
+  short={iff},
+}
+\newglossaryentry{if}{
+  type=\acronymtype,
+  name={IF},
+  description={Intermediate frequency},
+  first={intermediate frequency (IF)},
+  sort={IF},
+  long={intermediate frequency},
+  short={IF},
+}
+\newglossaryentry{iid}{
+  type=\acronymtype,
+  name={i.i.d.},
+  description={Independent and identically distributed},
+  first={independent and identically distributed (i.i.d.)},
+  sort={i.i.d.},
+  long={independent and identically distributed},
+  short={i.i.d.},
+}
+\newglossaryentry{iot}{
+  type=\acronymtype,
+  name={IoT},
+  description={Internet of things},
+  first={internet of things (IoT)},
+  sort={IoT},
+  long={internet of things},
+  short={IoT},
+}
+\newglossaryentry{ipp}{
+  type=\acronymtype,
+  name={IPP},
+  description={Ionospheric pierce point},
+  first={ionospheric pierce point (IPP)},
+  sort={IPP},
+  long={ionospheric pierce point},
+  short={IPP}
+}
+\newglossaryentry{isi}{
+  type=\acronymtype,
+  name={ISI},
+  description={Intersymbol interference},
+  first={intersymbol interference (ISI)},
+  sort={ISI},
+  long={intersymbol interference},
+  short={ISI},
+}
+
+\newglossaryentry{ismr}{
+  type=\acronymtype,
+  name={ISMR},
+  description={Ionospheric scintillation monitoring receiver},
+  first={ionospheric scintillation monitoring receiver (ISMR)},
+  firstplural={ionospheric scintillation monitoring receivers (ISMRs)},
+  sort={ISMR},
+  long={ionospheric scintillation monitoring receiver},
+  longplural={ionospheric scintillation monitoring receivers},
+  short={ISMR},
+}
+\newglossaryentry{ita}{
+  type=\acronymtype,
+  name={ITA},
+  description={Aeronautics Institute of Technology},
+  first={Aeronautics Institute of Technology (ITA)},
+  sort={ITA},
+  long={Aeronautics Institute of Technology},
+  short={ITA},
+}
+\newglossaryentry{itu}{
+  type=\acronymtype,
+  name={ITU},
+  description={International Telecommunications Union},
+  first={International Telecommunications Union (ITU)},
+  sort={ITU},
+  long={International Telecommunications Union},
+  plural={},
+  short={ITU},
+}
+\newglossaryentry{ahl-kf-ar}{
+  type=\acronymtype,
+  name={AHL-KF-AR},
+  description={Adaptive Hard-limited Autoregressive Kalman filter},
+  first={adaptive hard-limited autoregressive Kalman filter (AHL-KF-AR)},
+  sort={AHL-KF-AR},
+  long={adaptive hard-limited autoregressive Kalman filter},
+  short={AHL-KF-AR},
+}
+\newglossaryentry{akf-ar}{
+  type=\acronymtype,
+  name={AKF-AR},
+  description={Autoregressive Adaptive Kalman filter},
+  first={autoregressive adaptive Kalman filter (AKF-AR)},
+  sort={AKF-AR},
+  long={autoregressive adaptive Kalman filter},
+  short={AKF-AR},
+}
+\newglossaryentry{kf-ar}{
+  type=\acronymtype,
+  name={KF-AR},
+  description={Autoregressive Kalman filter},
+  first={autoregressive Kalman filter (KF-AR)},
+  sort={KF-AR},
+  long={autoregressive Kalman filter},
+  short={KF-AR},
+}
+\newglossaryentry{kf}{
+  type=\acronymtype,
+  name={KF},
+  description={Kalman filter},
+  first={Kalman filter (KF)},
+  sort={KF},
+  long={Kalman filter},
+  short={KF},
+  plural={KFs},
+}
+\newglossaryentry{leo}{
+  type=\acronymtype,
+  name={LEO},
+  description={Low Earth orbit},
+  first={low Earth orbit (LEO)},
+  sort={LEO},
+  long={low Earth orbit},
+  short={LEO},
+}
+\newglossaryentry{lms}{
+  type=\acronymtype,
+  name={LMS},
+  description={Least mean squares},
+  first={least mean squares (LMS)},
+  sort={LMS},
+  long={least mean squares},
+  plural={},
+  short={LMS},
+}
+\newglossaryentry{1pps}{
+    type=\acronymtype,
+    name={1PPS},
+    description={1-Hz pulse per second},
+    first={1-Hz pulse-per-second (1PPS)},
+    sort={1PPS},
+    long={1-Hz pulse per second},
+    short={1PPS},
+}
+\newglossaryentry{lna}{
+  type=\acronymtype,
+  name={LNA},
+  description={Low noise amplifier},
+  first={low noise amplifier (LNA)},
+  sort={LNA},
+  long={low noise amplifier},
+  short={LNA},
+}
+\newglossaryentry{los}{
+  type=\acronymtype,
+  name={LOS},
+  description={Line-of-sight},
+  first={line-of-sight (LOS)},
+  sort={LOS},
+  long={line-of-sight},
+  short={LOS},
+}
+\newglossaryentry{lo}{
+  type=\acronymtype,
+  name={LO},
+  description={Local oscillator},
+  first={local oscillator (LO)},
+  sort={LO},
+  long={local oscillator},
+  short={LO},
+}
+\newglossaryentry{lpf}{
+  type=\acronymtype,
+  name={LPF},
+  description={Lowpass filter},
+  first={lowpass filter (LPF)},
+  sort={LPF},
+  long={lowpass filter},
+  short={LPF},
+}
+\newglossaryentry{lsb}{
+  type=\acronymtype,
+  name={LSB},
+  description={Least significant bit},
+  first={least significant bit (LSB)},
+  sort={LSB},
+  long={least significant bit},
+  short={LSB},
+}
+\newglossaryentry{lstm}{
+  type=\acronymtype,
+  name={LSTM},
+  description={Long short-term memory},
+  first={long short-term memory (LSTM)},
+  sort={LSTM},
+  long={long short-term memory},
+  short={LSTM},
+}
+\newglossaryentry{lut}{
+  type=\acronymtype,
+  name={LUT},
+  description={Lookup table},
+  first={lookup table (LUT)},
+  sort={LUT},
+  long={lookup table},
+  longplural={Lookup tables},
+  short={LUT},
+}
+\newglossaryentry{mcrb}{
+  type=\acronymtype,
+  name={MCRB},
+  description={Modified Cramér-Rao bound},
+  first={modified Cramér-Rao bound (MCRB)},
+  sort={MCRB},
+  long={modified Cramér-Rao bound},
+  short={MCRB},
+}
+\newglossaryentry{mc}{
+  type=\acronymtype,
+  name={MC},
+  description={Multiconstellation},
+  first={multiconstellation (MC)},
+  sort={MC},
+  long={multiconstellation},
+  short={MC},
+}
+\newglossaryentry{meo}{
+  type=\acronymtype,
+  name={MEO},
+  description={Medium Earth orbit},
+  first={medium Earth orbit (MEO)},
+  sort={MEO},
+  long={medium Earth orbit},
+  short={MEO},
+}
+\newglossaryentry{mf}{
+  type=\acronymtype,
+  name={MF},
+  description={Multifrequency},
+  first={multifrequency (MF)},
+  sort={MF},
+  long={multifrequency},
+  short={MF},
+}
+\newglossaryentry{vtl}{
+    type=\acronymtype,
+    name={VTL},
+    description={Vector tracking loop},
+    first={vector tracking loop (VTL)},
+    sort={VTL},
+    long={vector tracking loop},
+    longplural={vector tracking loops},
+    short={VTL},
+    shortplural={VTLs},
+}
+\newglossaryentry{mlp}{
+  type=\acronymtype,
+  name={MLP},
+  description={Multilayer perceptron},
+  first={multilayer perceptron (MLP)},
+  sort={MLP},
+  long={multilayer perceptron},
+  longplural={multilayer perceptrons},
+  short={MLP},
+  shortplural={MLPs},
+}
+\newglossaryentry{mlsd}{
+  type=\acronymtype,
+  name={MLSD},
+  description={Maximum likelihood sequence detection},
+  first={maximum likelihood sequence detection (MLSD)},
+  sort={MLSD},
+  long={maximum likelihood sequence detection},
+  plural={},
+  short={MLSD},
+}
+\newglossaryentry{mlse}{
+  type=\acronymtype,
+  name={MLSE},
+  description={Maximum likelihood sequence estimation},
+  first={maximum likelihood sequence estimation (MLSE)},
+  sort={MLSE},
+  long={maximum likelihood sequence estimation},
+  plural={},
+  short={MLSE},
+}
+\newglossaryentry{ml}{
+  type=\acronymtype,
+  name={ML},
+  description={Maximum likelihood},
+  first={maximum likelihood (ML)},
+  sort={ML},
+  long={maximum likelihood},
+  plural={},
+  short={ML},
+}
+\newglossaryentry{mm}{
+  type=\acronymtype,
+  name={MM},
+  description={Mass market},
+  first={mass-market (MM)},
+  sort={MM},
+  long={mass market},
+  short={MM},
+}
+\newglossaryentry{mps}{
+  type=\acronymtype,
+  name={MPS},
+  description={Multiple phase screen},
+  first={multiple phase screen (MPS)},
+  sort={MPS},
+  long={multiple phase screen},
+  plural={},
+  short={MPS}
+}
+\newglossaryentry{msb}{
+  type=\acronymtype,
+  name={MSB},
+  description={Most significant bit},
+  first={most significant bit (MSB)},
+  sort={MSB},
+  long={most significant bit},
+  short={MSB},
+}
+\newglossaryentry{mse}{
+  type=\acronymtype,
+  name={MSE},
+  description={Mean squared error},
+  first={mean squared error (MSE)},
+  sort={MSE},
+  long={mean squared error},
+  plural={},
+  short={MSE},
+}
+\newglossaryentry{mvu}{
+  type=\acronymtype,
+  name={MVU},
+  description={Minimum variance unbiased},
+  first={minimum variance unbiased (MVU)},
+  sort={MVU},
+  long={minimum variance unbiased},
+  plural={},
+  short={MVU},
+}
+\newglossaryentry{nco}{
+  type=\acronymtype,
+  name={NCO},
+  description={Numerically-controlled oscillator},
+  first={numerically-controlled oscillator (NCO)},
+  sort={NCO},
+  long={numerically-controlled oscillator},
+  short={NCO},
+}
+\newglossaryentry{nn}{
+  type=\acronymtype,
+  name={NN},
+  description={Nearest neighbour},
+  first={nearest neighbour (NN)},
+  sort={NN},
+  long={nearest neighbour},
+  plural={},
+  short={NN},
+}
+\newglossaryentry{np}{
+  type=\acronymtype,
+  name={NP},
+  description={Neyman-Pearson},
+  first={Neyman-Pearson (NP)},
+  sort={NP},
+  long={Neyman-Pearson},
+  short={NP},
+}
+\newglossaryentry{nrz}{
+  type=\acronymtype,
+  name={NRZ},
+  description={Nonreturn-to-zero},
+  first={nonreturn-to-zero (NRZ)},
+  sort={NRZ},
+  long={nonreturn-to-zero},
+  short={NRZ},
+}
+\newglossaryentry{ocxo}{
+  type=\acronymtype,
+  name={OCXO},
+  description={Oven-controlled crystal oscillator},
+  first={oven-controlled crystal oscillator (OCXO)},
+  firstplural={oven-controlled crystal oscillators (OCXOs)},
+  sort={OCXO},
+  long={oven-controlled crystal oscillator},
+  longplural={oven-controlled crystal oscillators},
+  short={OCXO},
+  shortplural={OCXOs},
+}
+\newglossaryentry{ode}{
+  type=\acronymtype,
+  name={ODE},
+  description={Ordinary differential equation},
+  first={ordinary differential equation (ODE)},
+  sort={ODE},
+  long={ordinary differential equation},
+  longplural={ordinary differential equations},
+  short={ODE},
+}
+\newglossaryentry{ols}{
+  type=\acronymtype,
+  name={OLS},
+  description={Ordinary least squares},
+  first={ordinary least squares (OLS)},
+  sort={OLS},
+  long={ordinary least squares},
+  plural={},
+  short={OLS},
+}
+\newglossaryentry{pca}{
+  type=\acronymtype,
+  name={PCA},
+  description={Principal component analysis},
+  first={principal component analysis (PCA)},
+  sort={PCA},
+  long={principal component analysis},
+  short={PCA},
+}
+\newglossaryentry{pdf}{
+  type=\acronymtype,
+  name={PDF},
+  description={Probability density function},
+  first={probability density function (PDF)},
+  sort={PDF},
+  long={probability density function},
+  short={PDF},
+}
+\newglossaryentry{pi}{
+  type=\acronymtype,
+  name={PI},
+  description={Proportional-integral},
+  first={proportional-integral (PI)},
+  sort={PI},
+  long={proportional-integral},
+  short={PI},
+}
+\newglossaryentry{pe}{
+  type=\acronymtype,
+  name={PE},
+  description={Parabolic equation},
+  first={parabolic equation (PE)},
+  sort={PE},
+  long={parabolic equation},
+  short={PE},
+}
+\newglossaryentry{pll}{
+  type=\acronymtype,
+  name={PLL},
+  description={Phase-locked loop},
+  first={phase-locked loop (PLL)},
+  firstplural={phase-locked loops (PLLs)},
+  sort={PLL},
+  long={phase-locked loop},
+  longplural={phase-locked loops},
+  plural={PLLs},
+  short={PLL},
+}
+\newglossaryentry{ppp}{
+  type=\acronymtype,
+  name={PPP},
+  description={Precise point positioning},
+  first={precise point positioning (PPP)},
+  sort={PPP},
+  long={precise point positioning},
+  short={PPP},
+}
+\newglossaryentry{pr}{
+  type=\acronymtype,
+  name={PR},
+  description={Pseudorandom},
+  first={pseudorandom (PR)},
+  sort={PR},
+  long={pseudorandom},
+  short={PR},
+}
+\newglossaryentry{psd}{
+  type=\acronymtype,
+  name={PSD},
+  description={Power spectral density},
+  first={power spectral density (PSD)},
+  sort={PSD},
+  long={power spectral density},
+  longplural={power spectral densities}
+  plural = {PSDs}
+  short={PSD},
+}
+\newglossaryentry{pvt}{
+  type=\acronymtype,
+  name={PVT},
+  description={Position, velocity, and time},
+  first={position, velocity, and time (PVT)},
+  sort={PVT},
+  long={position, velocity, and time},
+  short={PVT},
+}
+\newglossaryentry{qpsk}{
+  type=\acronymtype,
+  name={QPSK},
+  description={Quadrature phase-shift keying},
+  first={quadrature phase-shift keying (QPSK)},
+  sort={QPSK},
+  long={quadrature phase-shift keying},
+  short={QPSK},
+}
+\newglossaryentry{rbf}{
+  type=\acronymtype,
+  name={RBF},
+  description={Radial basis function},
+  first={radial basis function (RBF)},
+  sort={RBF},
+  long={radial basis function},
+  plural={},
+  short={RBF},
+}
+\newglossaryentry{relu}{
+  type=\acronymtype,
+  name={ReLU},
+  description={Rectified linear unit},
+  first={rectified linear unit (ReLU)},
+  sort={ReLU},
+  long={rectified linear unit},
+  short={ReLU},
+}
+\newglossaryentry{rf-fe}{
+  type=\acronymtype,
+  name={RF-FE},
+  description={Radiofrequency front end},
+  first={radiofrequency front end (RF-FE)},
+  firstplural={radiofrequency front ends (RF-FEs)},
+  sort={RF-FE},
+  long={radiofrequency front end},
+  short={RF-FE},
+}
+\newglossaryentry{rf}{
+  type=\acronymtype,
+  name={RF},
+  description={Radiofrequency},
+  first={radiofrequency (RF)},
+  firstplural={radiofrequencies (RFs)},
+  sort={RF},
+  plural = {RFs}
+  long={radiofrequency},
+  short={RF},
+}
+\newglossaryentry{rinex}{
+  type=\acronymtype,
+  name={RINEX},
+  description={Receiver Independent Exchange Format},
+  first={RINEX (Receiver Independent Exchange Format)},
+  sort={RINEX},
+  long={Receiver Independent Exchange Format},
+  short={RINEX},
+}
+\newglossaryentry{rls}{
+  type=\acronymtype,
+  name={RLS},
+  description={Recursive least squares},
+  first={recursive least squares (RLS)},
+  sort={RLS},
+  long={recursive least squares},
+  plural={},
+  short={RLS},
+}
+\newglossaryentry{rms}{
+  type=\acronymtype,
+  name={RMS},
+  description={Root mean square},
+  first={root mean square (RMS)},
+  sort={RMS},
+  long={root mean square},
+  short={RMS},
+}
+\newglossaryentry{rtk}{
+  type=\acronymtype,
+  name={RTK},
+  description={Real-time kinematics},
+  first={real-time kinematics (RTK)},
+  sort={RTK},
+  long={real-time kinematics},
+  short={RTK},
+}
+\newglossaryentry{rt}{
+  type=\acronymtype,
+  name={RT},
+  description={Rayleigh-Taylor},
+  first={Rayleigh-Taylor (RT)},
+  sort={RT},
+  long={Rayleigh-Taylor},
+  short={RT},
+}
+\newglossaryentry{scap}{
+  type=\acronymtype,
+  name={SCAp},
+  description={Safety- and liability-critical applications},
+  first={safety- and liability-critical applications (SCAp)},
+  sort={SCAp},
+  long={safety- and liability-critical applications},
+  short={SCAp},
+}
+\newglossaryentry{sde}{
+  type=\acronymtype,
+  name={SDE},
+  description={Stochastic differential equation},
+  first={stochastic differential equation (SDE)},
+  sort={SDE},
+  long={stochastic differential equation},
+  longplural={Stochastic differential equations},
+  short={SDE},
+}
+\newglossaryentry{sdr}{
+  type=\acronymtype,
+  name={SDR},
+  description={Software-defined radio},
+  first={software-defined radio (SDR)},
+  sort={SDR},
+  long={software-defined radio},
+  short={SDR},
+}
+\newglossaryentry{sgd}{
+  type=\acronymtype,
+  name={SGD},
+  description={Stochastic gradient descent},
+  first={stochastic gradient descent (SGD)},
+  sort={SGD},
+  long={stochastic gradient descent},
+  plural={},
+  short={SGD},
+}
+\newglossaryentry{sgp4}{
+  type=\acronymtype,
+  name={SGP4},
+  description={Simplified general perturbations},
+  first={simplified general perturbations (SGP4)},
+  sort={SGP4},
+  long={simplified general perturbations},
+  short={SGP4},
+}
+\newglossaryentry{snr}{
+  type=\acronymtype,
+  name={SNR},
+  description={Signal-to-noise ratio},
+  first={signal-to-noise ratio (SNR)},
+  sort={SNR},
+  long={signal-to-noise ratio},
+  short={SNR},
+}
+\newglossaryentry{spp}{
+  type=\acronymtype,
+  name={SPP},
+  description={Standard point positioning},
+  first={standard point positioning (SPP)},
+  sort={SPP},
+  long={standard point positioning},
+  short={SPP},
+}
+\newglossaryentry{std}{
+  type=\acronymtype,
+  name={STD},
+  description={Symbol timing delay},
+  first={symbol timing delay (STD)},
+  sort={STD},
+  long={symbol timing delay},
+  short={STD},
+}
+\newglossaryentry{stft}{
+  type=\acronymtype,
+  name={STFT},
+  description={Short-time Fourier transform},
+  first={short-time Fourier transform (STFT)},
+  sort={STFT},
+  long={short-time Fourier transform},
+  short={STFT},
+}
+\newglossaryentry{svc}{
+  type=\acronymtype,
+  name={SVC},
+  description={Support vector classifier},
+  first={support vector classifier (SVC)},
+  sort={SVC},
+  long={support vector classifier},
+  short={SVC},
+}
+\newglossaryentry{svd}{
+  type=\acronymtype,
+  name={SVD},
+  description={Singular value decomposition},
+  first={singular value decomposition (SVD)},
+  sort={SVD},
+  long={singular value decomposition},
+  short={SVD},
+}
+\newglossaryentry{svm}{
+  type=\acronymtype,
+  name={SVM},
+  description={Support vector machine},
+  first={support vector machine (SVM)},
+  sort={SVM},
+  long={support vector machine},
+  short={SVM},
+}
+\newglossaryentry{tcxo}{
+  type=\acronymtype,
+  name={TCXO},
+  description={Temperature compensated crystal oscillator},
+  first={temperature compensated crystal oscillator (TCXO)},
+  sort={TCXO},
+  long={temperature compensated crystal oscillator},
+  plural={temperature compensated crystal oscillators},
+  firstplural={temperature compensated crystal oscillators (TCXOs)},
+  short={TCXO},
+}
+\newglossaryentry{tec}{
+  type=\acronymtype,
+  name={TEC},
+  description={Total electron content},
+  first={total electron content (TEC)},
+  sort={TEC},
+  long={total electron content},
+  short={TEC},
+}
+\newglossaryentry{tppsm}{
+  type=\acronymtype,
+  name={TPPSM},
+  description={Two-Component Power-Law Phase-Screen Model},
+  first={Two-Component Power-Law Phase-Screen Model (TPPSM)},
+  sort={TPPSM},
+  long={Two-Component Power-Law Phase-Screen Model},
+  short={TPPSM},
+}
+\newglossaryentry{tsc}{
+  type=\acronymtype,
+  name={TSC},
+  description={Time series classification},
+  first={time series classification (TSC)},
+  sort={TSC},
+  long={time series classification},
+  short={TSC},
+}
+\newglossaryentry{tt&c}{
+  type=\acronymtype,
+  name={TT\&C},
+  description={Telemetry, tracking and command},
+  first={telemetry, tracking and command (TT\&C)},
+  sort={TT\&C},
+  long={telemetry, tracking and command},
+  short={TT\&C},
+}
+\newglossaryentry{uhf}{
+  type=\acronymtype,
+  name={UHF},
+  description={Ultra high frequency},
+  first={ultra high frequency (UHF)},
+  sort={UHF},
+  long={ultra high frequency},
+  short={UHF},
+}
+\newglossaryentry{up}{
+  type=\acronymtype,
+  name={\textmu P},
+  description={Microprocessor},
+  first={microprocessor (\textmu P)},
+  sort={\textmu P},
+  long={microprocessor},
+  longplural={microprocessors},
+  short={\textmu P},
+  shortplural={\textmu Ps},
+}
+\newglossaryentry{vhf}{
+  type=\acronymtype,
+  name={VHF},
+  description={Very high frequency},
+  first={very high frequency (VHF)},
+  sort={VHF},
+  long={very high frequency},
+  short={VHF},
+}
+\newglossaryentry{vtec}{
+  type=\acronymtype,
+  name={VTEC},
+  description={Vertical total electron content},
+  first={vertical total electron content (VTEC)},
+  sort={VTEC},
+  long={vertical total electron content},
+  longplural={Vertical total electron contents},
+  short={VTEC},
+}
+\newglossaryentry{wmf}{
+  type=\acronymtype,
+  name={WMF},
+  description={Whitened matched filter},
+  first={whitened matched filter (WMF)},
+  sort={WMF},
+  long={whitened matched filter},
+  longplural={},
+  short={WMF},
+}
+\newglossaryentry{wscs}{
+  type=\acronymtype,
+  name={WSCS},
+  description={Wide-sense cyclostationary},
+  first={wide-sense cyclostationary (WSCS)},
+  sort={WSCS},
+  long={wide-sense cyclostationary},
+  plural={},
+  short={WSCS},
+}
+\newglossaryentry{wss}{
+  type=\acronymtype,
+  name={WSS},
+  description={Wide-sense stationary},
+  first={wide-sense stationary (WSS)},
+  sort={WSS},
+  long={wide-sense stationary},
+  short={WSS},
+}
+\newglossaryentry{mimo}{
+  type=\acronymtype,
+  name={MIMO},
+  description={Multiple-input multiple-output},
+  first={multiple-input multiple-output (MIMO)},
+  sort={MIMO},
+  long={multiple-input multiple-output},
+  short={MIMO},
+}
+\newglossaryentry{doa}{
+  type=\acronymtype,
+  name={DoA},
+  description={Direction of arrival},
+  first={direction of arrival (DoA)},
+  sort={DoA},
+  long={direction of arrival},
+  short={DoA},
+}
