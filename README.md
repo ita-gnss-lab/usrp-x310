@@ -7,7 +7,7 @@ See `instructions/` for more info
 
 ## Recording I/Q samples (Python + UHD)
 
-`main.py` streams the TwinRX channels straight to disk as [SigMF](https://sigmf.org) recordings. Defaults: GPS L1 on RX0, GPS L5 on RX1, 2 MS/s, external 10 MHz reference.
+`x310usrp_record.py` streams the TwinRX channels straight to disk as [SigMF](https://sigmf.org) recordings. Defaults: GPS L1 on RX0, GPS L5 on RX1, 2 MS/s, external 10 MHz reference.
 
 ### One-time setup
 
@@ -22,9 +22,9 @@ uv sync
 ### Record
 
 ```bash
-uv run main.py --duration 5                       # L1 + L5, 5 s
-uv run main.py --freq 1575.42e6 --channels 0      # L1 only
-uv run main.py --rate 5e6 --gain 10 --name test1  # see --help for all options
+uv run x310usrp_record.py --duration 5                       # L1 + L5, 5 s
+uv run x310usrp_record.py --freq 1575.42e6 --channels 0      # L1 only
+uv run x310usrp_record.py --rate 5e6 --gain 10 --name test1  # see --help for all options
 ```
 
 Output in `recordings/`, per channel:

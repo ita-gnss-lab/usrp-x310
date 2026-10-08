@@ -5,7 +5,7 @@
 #   1. only inside the [$WINDOW_START, $WINDOW_END) local-time window
 #   2. senses whether the USRP is reachable via `uhd_find_devices`; if not,
 #      exits silently and is sensed again at the next 15-min tick
-#   3. once found, records (each recording is main.py's default: 5 min)
+#   3. once found, records (each recording is x310usrp_record.py's default: 5 min)
 #   4. at most $MAX_PER_DAY recordings per calendar day
 #   5. the second recording must start at least $MIN_GAP_SEC after the first
 #
@@ -29,6 +29,7 @@ mkdir -p "$STATE_DIR"
 
 # Refuse to overlap with another run of this script (manual trigger racing the timer, etc).
 exec 9>"$STATE_DIR/.lock"
+# flock locks a file so only one process can hold it at a time — a mutex, using the filesystem instead of memory. The script opens .lock and calls flock -n 9 on it; if another instance already holds it, that call fails immediately instead of waiting, and the script exits instead of running a second recording in parallel. The lock is automatically released when the process that holds it exits, crash or not — no manual unlock needed.
 flock -n 9 || { echo "another run is already in progress; skipping"; exit 0; }
 
 now_hm=$(date +%H:%M)
@@ -68,7 +69,7 @@ fi
 cd "$REPO_DIR"
 name="x310_$(date -u +%Y%m%dT%H%M%SZ)" # builds a UTC timestamp string and prefixes it with x310_, e.g. x310_20261008T161530Z (year, month, day, literal T, hour, minute, second, literal Z (for Zulu/UTC), via -u to force UTC regardless of the system's local timezone).
 echo "USRP detected; recording ($((count + 1))/$MAX_PER_DAY today) as '$name' ..."
-"$UV_BIN" run main.py --name "$name" --args "$USRP_ARGS"
+"$UV_BIN" run x310usrp_record.py --name "$name" --args "$USRP_ARGS"
 
 # append the timestamp of this recording to the per-day log
 echo "$now_epoch" >> "$day_log"
