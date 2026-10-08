@@ -1,28 +1,29 @@
 #!/usr/bin/env bash
-# Wrapper invoked by x310-record.timer.
+# Wrapper invoked by x310-record.timer every 15 min between 16:00 and 18:00.
 #
-# Enforces, independently of the timer schedule:
-#   1. at most $MAX_PER_DAY recordings per calendar day
-#   2. only inside the [$WINDOW_START, $WINDOW_END) local-time window
+# Per report/main.tex's recording guidelines:
+#   1. only inside the [$WINDOW_START, $WINDOW_END) local-time window
+#   2. senses whether the USRP is reachable via `uhd_find_devices`; if not,
+#      exits silently and is sensed again at the next 15-min tick
+#   3. once found, records (each recording is main.py's default: 5 min)
+#   4. at most $MAX_PER_DAY recordings per calendar day
+#   5. the second recording must start at least $MIN_GAP_SEC after the first
 #
-# The timer is set to fire at 16:00 and 17:00, which already satisfies both
-# rules by construction -- but this script re-checks both anyway, so a
-# manual `systemctl start`, a Persistent=true catch-up run after the host
-# was off during a scheduled slot, or a future timer edit can never record
-# outside the window or push the daily count past the limit.
+# All five are re-checked here regardless of the timer schedule, so a manual
+# `systemctl start`, a Persistent=true catch-up run, or a future timer edit
+# can never record outside the window, more than twice a day, or less than
+# 30 min apart.
 
 set -euo pipefail
 
 REPO_DIR="/home/tapyu/git/usrp-x310"
 UV_BIN="/home/tapyu/.local/bin/uv"
-# STATE_DIR is just a path the script writes its own bookkeeping files into
-# The ${STATE_DIRECTORY:-/var/lib/x310-recorder} syntax picks $STATE_DIRECTORY if it's set, else falls back to /var/lib/x310-recorder. 
-# $STATE_DIRECTORY isn't something I invented — it's an environment variable systemd itself injects because x310-record.service has StateDirectory=x310-recorder: systemd creates /var/lib/x310-recorder, chowns it to the service's User=tapyu, and passes its path (/var/lib/x310-recorder) into the service's environment as $STATE_DIRECTORY. The /var/lib/x310-recorder fallback only matters if you ever run the script by hand outside systemd (e.g. to test it), where that env var wouldn't be set.
 STATE_DIR="${STATE_DIRECTORY:-/var/lib/x310-recorder}"
-
+USRP_ARGS="addr=192.168.10.2"
 WINDOW_START="16:00"
 WINDOW_END="18:00"
 MAX_PER_DAY=2
+MIN_GAP_SEC=$((30 * 60))
 
 mkdir -p "$STATE_DIR"
 
@@ -36,21 +37,40 @@ if [[ "$now_hm" < "$WINDOW_START" || "$now_hm" > "$WINDOW_END" ]]; then
     exit 0
 fi
 
-today=$(date +%F)
-count_file="$STATE_DIR/count-$today"
-count=0
-[[ -f "$count_file" ]] && count=$(<"$count_file")
+# One line per completed recording today, each the epoch second it started.
+day_log="$STATE_DIR/day-$(date +%F).log" # NOTE: %F is shorthand for %Y-%m-%d — date +%F prints today's date as 2026-10-08.
+touch "$day_log"
+mapfile -t today_runs < "$day_log" # NOTE: mapfile -t reads the file line by line into a bash array — here, today_runs gets one element per line of day_log, each being an epoch-second timestamp from a past recording today. -t strips the trailing newline from each line so the array holds clean values instead of "1696789200\n".
 
+# If more than $MAX_PER_DAY recordings have already been done today, skip this run.
+count=${#today_runs[@]} # number of recordings already done today
 if (( count >= MAX_PER_DAY )); then
-    echo "already recorded $count time(s) today ($today), limit is $MAX_PER_DAY; skipping"
+    echo "already recorded $count time(s) today, limit is $MAX_PER_DAY; skipping"
     exit 0
 fi
 
-cd "$REPO_DIR"
-name="x310_$(date -u +%Y%m%dT%H%M%SZ)"
-echo "recording ($((count + 1))/$MAX_PER_DAY today) as '$name' ..."
-"$UV_BIN" run main.py --name "$name"
+now_epoch=$(date +%s) # date +%s prints the number of seconds since 1970-01-01 UTC, i.e. "now" as a single integer instead of a formatted date string.
+if (( count == 1 )); then
+    gap_sec=$((now_epoch - today_runs[0])) # compute the difference in seconds between now and the first recording today
+    if (( gap_sec < MIN_GAP_SEC )); then
+        echo "only ${gap_sec}s since today's first recording, need, at minimum, ${MIN_GAP_SEC}s; skipping"
+        exit 0
+    fi
+fi
 
-echo $((count + 1)) > "$count_file"
-# Clean up old count files, so the state directory doesn't grow unbounded.
-find "$STATE_DIR" -maxdepth 1 -name 'count-*' -mtime +7 -delete
+# sense and skip if the USRP is not reachable
+if ! uhd_find_devices --args="$USRP_ARGS" >/dev/null 2>&1; then
+    echo "USRP not detected at $USRP_ARGS; will sense again in ~15 min"
+    exit 0
+fi
+
+# Record during 5 min
+cd "$REPO_DIR"
+name="x310_$(date -u +%Y%m%dT%H%M%SZ)" # builds a UTC timestamp string and prefixes it with x310_, e.g. x310_20261008T161530Z (year, month, day, literal T, hour, minute, second, literal Z (for Zulu/UTC), via -u to force UTC regardless of the system's local timezone).
+echo "USRP detected; recording ($((count + 1))/$MAX_PER_DAY today) as '$name' ..."
+"$UV_BIN" run main.py --name "$name" --args "$USRP_ARGS"
+
+# append the timestamp of this recording to the per-day log
+echo "$now_epoch" >> "$day_log"
+# Clean up old per-day logs, so the state directory doesn't grow unbounded.
+find "$STATE_DIR" -maxdepth 1 -name 'day-*.log' -mtime +30 -delete

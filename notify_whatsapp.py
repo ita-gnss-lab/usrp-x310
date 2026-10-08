@@ -1,4 +1,4 @@
-"""Send a WhatsApp message summarizing a main.py recording, via OpenWA.
+"""Send a WhatsApp message summarizing one main.py recording, via OpenWA.
 
 Reads the <name>_ch<k>.sigmf-meta/.sigmf-data files a recording produced,
 builds a short text summary (frequency, rate, gain, duration, size, dropped
@@ -28,15 +28,18 @@ Example:
   export OPENWA_SESSION=<uuid>
   uv run main.py --name test1 --duration 5
   uv run notify_whatsapp.py --name test1 --to +5581999999999
+
+See report_summary.py for the periodic multi-recording digest instead of a
+single-recording notification.
 """
 
 import argparse
 import json
 import os
 import re
-import urllib.error
-import urllib.request
 from pathlib import Path
+
+from whatsapp import send_whatsapp
 
 BYTES_PER_SAMPLE = 4  # ci16_le: int16 I + int16 Q
 
@@ -80,30 +83,6 @@ def summarize(name, channels):
         )
     lines.append(f"started {channels[0][1]['captures'][0]['core:datetime']}")
     return "\n".join(lines)
-
-
-def to_chat_id(phone):
-    """E.164 phone number ('+5581999999999') -> OpenWA chat id ('5581999999999@c.us')."""
-    digits = re.sub(r"\D", "", phone)
-    if not digits:
-        raise SystemExit(f"error: '{phone}' has no digits to build a chat id from")
-    return f"{digits}@c.us"
-
-
-def send_whatsapp(base_url, api_key, session, to, body):
-    """POST to OpenWA's send-text endpoint. Raises SystemExit with the server's error body on failure."""
-    url = f"{base_url.rstrip('/')}/api/sessions/{session}/messages/send-text"
-    payload = json.dumps({"chatId": to_chat_id(to), "text": body}).encode()
-    req = urllib.request.Request(url, data=payload, method="POST")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("X-API-Key", api_key)
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        raise SystemExit(f"error: OpenWA returned {e.code}: {e.read().decode()}")
-    except urllib.error.URLError as e:
-        raise SystemExit(f"error: couldn't reach OpenWA at {url}: {e.reason}")
 
 
 def main():

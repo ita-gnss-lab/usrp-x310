@@ -1,14 +1,13 @@
 [Unit]
-Description=Trigger x310-record.service at 16:00 and 17:00 local time
+Description=Sense the USRP X310 and record every 15 min between 16:00 and 18:00 local time
 
 [Timer]
-OnCalendar=*-*-* 16:00:00
-OnCalendar=*-*-* 17:00:00
-AccuracySec=1min
-# If the host was off/asleep at a scheduled time, run once at next boot --
-# x310-record.sh's own window check still blocks it if that catch-up lands
-# outside [16:00, 18:00).
-Persistent=true
+# 16:00, 16:15, 16:30, ..., 17:45 -- x310-record.sh is what actually decides
+# whether to record (device present? under the daily limit? 30 min since
+# the first recording?), this just bounds when it's even allowed to try.
+OnCalendar=*-*-* 16..17:0/15:00
+AccuracySec=30sec
+Persistent=false
 
 [Install]
 WantedBy=timers.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=USRP X310 fortnightly WhatsApp recording digest
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=tapyu
+Group=tapyu
+# Shares the recorder's state dir: reads/writes $STATE_DIRECTORY/last_report.
+StateDirectory=x310-recorder
+WorkingDirectory=/home/tapyu/git/usrp-x310
+# OPENWA_API_KEY, OPENWA_SESSION, REPORT_WHATSAPP_TO (lab head's number)
+EnvironmentFile=/home/tapyu/git/usrp-x310/.env
+ExecStart=/home/tapyu/.local/bin/uv run report_summary.py
