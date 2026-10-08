@@ -159,6 +159,8 @@ def session_subsection_tex(session, record_number):
                            for _, meta, _ in session["channels"])
     gain_row = " & ".join(f"{meta['global']['x310:gain_db']:.1f} dB" for _, meta, _ in session["channels"])
     antenna_row = " & ".join(tex_escape(meta["global"]["x310:antenna"]) for _, meta, _ in session["channels"])
+    daughterboard_row = " & ".join(tex_escape(meta["global"].get("x310:daughterboard", "n/a"))
+                                    for _, meta, _ in session["channels"])
     dropped_row = " & ".join(str(meta["global"]["x310:dropped_samples"]) for _, meta, _ in session["channels"])
     size_row = " & ".join(f"{size / 1e6:.1f} MB" for _, _, size in session["channels"])
     # x310:written_samples is only present on recordings made after this field was added;
@@ -187,7 +189,8 @@ def session_subsection_tex(session, record_number):
         f"Lost samples & {dropped_row} \\\\",
         f"Clock source & {span}{{{tex_escape(g0['x310:clock_source'])}}} \\\\",
         f"Time source & {span}{{{tex_escape(g0['x310:time_source'])}}} \\\\",
-        f"Hardware & {span}{{{tex_escape(g0['core:hw'])}}} \\\\",
+        f"Motherboard & {span}{{{tex_escape(g0['core:hw'])}}} \\\\",
+        f"Daughterboard & {daughterboard_row} \\\\",
         f"Recorder & {span}{{{tex_escape(g0['core:recorder'])}}} \\\\",
     ]
 
