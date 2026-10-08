@@ -8,6 +8,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     # Keep ABI parity with the system numpy that python3-uhd was built against
     "numpy>=1.26,<2",
+    "sigmf>=1.13.0",
 ]
 
 [tool.uv]

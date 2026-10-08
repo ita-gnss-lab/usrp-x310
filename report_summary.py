@@ -1,11 +1,12 @@
 """Send a periodic WhatsApp report of every recording since the last report,
 compiled as a PDF from report/main.tex, plus a short text digest.
 
-Scans --out-dir for all <name>_ch<k>.sigmf-meta/.sigmf-data files, groups
-them back into recording sessions (one per x310usrp_record.py run, multiple
-channels each -- a dual-channel recording counts as ONE session/record),
-keeps only the ones newer than the last report (tracked in a state file,
-defaulting to 15 days back on first run), and:
+Scans --out-dir for every <name>.sigmf Archive (x310usrp_record.py's output:
+one Archive per session, bundling a Collection + each channel's Recording)
+and groups each one into a session (one per x310usrp_record.py run,
+multiple channels each -- a dual-channel recording counts as ONE
+session/record). Keeps only the ones newer than the last report (tracked in
+a state file, defaulting to 15 days back on first run), and:
   1. sends a short text summary -- counts, data volume, dropped samples,
      and which days (if any) had no recording -- through a self-hosted
      OpenWA gateway (https://github.com/rmyndharis/OpenWA). See
@@ -36,6 +37,7 @@ import json
 import os
 import re
 import subprocess
+import tarfile
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -65,28 +67,36 @@ def parse_args():
     return p.parse_args()
 
 
-def load_sessions(out_dir):
-    """Group <name>_ch<k>.sigmf-meta files back into one entry per recording session."""
-    by_name = defaultdict(list)
-    for meta_path in sorted(out_dir.glob("*_ch*.sigmf-meta")):
-        m = re.match(r"^(.*)_ch(\d+)\.sigmf-meta$", meta_path.name)
-        if m:
-            by_name[m.group(1)].append((int(m.group(2)), meta_path))
+def _channel_num(meta_name):
+    """'<name>_ch<k>' -> k, from a SigMF Recording's base name (no extension)."""
+    m = re.search(r"_ch(\d+)$", meta_name)
+    return int(m.group(1)) if m else 0
 
+
+def load_sessions(out_dir):
+    """Read every <name>.sigmf archive in out_dir (one SigMF Archive per recording session,
+    bundling a Collection + each channel's Recording) directly from the tar -- no extraction
+    needed, including for the (potentially huge) .sigmf-data members, whose size comes
+    straight from the tar header -- into one entry per session, channels sorted."""
     sessions = []
-    for name, entries in by_name.items():
-        channels = []
-        for ch, meta_path in sorted(entries):
-            meta = json.loads(meta_path.read_text())
-            data_path = meta_path.with_suffix(".sigmf-data")
-            size = data_path.stat().st_size if data_path.exists() else 0
-            channels.append((ch, meta, size))
+    for archive_path in sorted(out_dir.glob("*.sigmf")):
+        with tarfile.open(archive_path) as tar:
+            data_sizes = {m.name: m.size for m in tar.getmembers() if m.name.endswith(".sigmf-data")}
+            channels = []
+            for member in tar.getmembers():
+                if not member.name.endswith(".sigmf-meta"):
+                    continue
+                meta = json.loads(tar.extractfile(member).read())
+                base = Path(member.name).name.removesuffix(".sigmf-meta")
+                size = data_sizes.get(f"{Path(member.name).parent}/{base}.sigmf-data", 0)
+                channels.append((_channel_num(base), meta, size))
+        channels.sort()
         dt = datetime.fromisoformat(channels[0][1]["captures"][0]["core:datetime"].replace("Z", "+00:00"))
         sessions.append({
-            "name": name,
+            "name": archive_path.stem,
             "datetime": dt,
             "channels": channels,
-            "dropped": sum(meta["global"]["x310:dropped_samples"] for _, meta, _ in channels),
+            "dropped": sum(meta["global"]["x310:lost_samples"] for _, meta, _ in channels),
             "bytes": sum(size for _, _, size in channels),
         })
     return sorted(sessions, key=lambda s: s["datetime"])
@@ -151,25 +161,19 @@ def session_subsection_tex(session, record_number):
     date_str = session["datetime"].strftime("%d/%m/%Y")
     start_str = session["datetime"].strftime("%Y-%m-%d %H:%M:%S UTC")
     rate = g0["core:sample_rate"]
-    bytes_per_sample = g0.get("core:bytes_per_sample", 4)
-    sample_type = tex_escape(g0.get("core:sample_type_desc", g0.get("core:sample_type", "ci16_le")))
+    bytes_per_sample = g0["core:bytes_per_sample"]
+    sample_type = tex_escape(g0["core:sample_type_desc"])
 
     channel_cols = " & ".join(f"\\textbf{{Channel {ch}}}" for ch, _, _ in session["channels"])
     freq_row = " & ".join(f"{meta['captures'][0]['core:frequency'] / 1e6:.3f} MHz"
                            for _, meta, _ in session["channels"])
     gain_row = " & ".join(f"{meta['global']['x310:gain_db']:.1f} dB" for _, meta, _ in session["channels"])
     antenna_row = " & ".join(tex_escape(meta["global"]["x310:antenna"]) for _, meta, _ in session["channels"])
-    daughterboard_row = " & ".join(tex_escape(meta["global"].get("x310:daughterboard", "n/a"))
+    daughterboard_row = " & ".join(tex_escape(meta["global"]["x310:daughterboard"])
                                     for _, meta, _ in session["channels"])
-    dropped_row = " & ".join(str(meta["global"]["x310:dropped_samples"]) for _, meta, _ in session["channels"])
+    lost_samp_row = " & ".join(str(meta["global"]["x310:lost_samples"]) for _, meta, _ in session["channels"])
     size_row = " & ".join(f"{size / 1e6:.1f} MB" for _, _, size in session["channels"])
-    # x310:written_samples is only present on recordings made after this field was added;
-    # older ones fall back to deriving it from the file size, same as the duration calc below.
-    written_row = " & ".join(
-        f"{meta['global']['x310:written_samples']:,}" if "x310:written_samples" in meta["global"]
-        else f"{size // meta['global'].get('core:bytes_per_sample', 4):,}"
-        for _, meta, size in session["channels"]
-    )
+    written_row = " & ".join(f"{meta['global']['x310:written_samples']:,}" for _, meta, _ in session["channels"])
     duration = session["channels"][0][2] / bytes_per_sample / rate if rate else 0.0
 
     n_channels = len(session["channels"])
@@ -186,10 +190,10 @@ def session_subsection_tex(session, record_number):
         f"Antenna & {antenna_row} \\\\",
         f"File size & {size_row} \\\\",
         f"Samples written & {written_row} \\\\",
-        f"Lost samples & {dropped_row} \\\\",
+        f"Lost samples & {lost_samp_row} \\\\",
         f"Clock source & {span}{{{tex_escape(g0['x310:clock_source'])}}} \\\\",
         f"Time source & {span}{{{tex_escape(g0['x310:time_source'])}}} \\\\",
-        f"Motherboard & {span}{{{tex_escape(g0['core:hw'])}}} \\\\",
+        f"Motherboard & {span}{{{tex_escape(g0['core:motherboard'])}}} \\\\",
         f"Daughterboard & {daughterboard_row} \\\\",
         f"Recorder & {span}{{{tex_escape(g0['core:recorder'])}}} \\\\",
     ]

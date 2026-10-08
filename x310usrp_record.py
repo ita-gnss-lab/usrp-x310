@@ -5,13 +5,14 @@ little-endian) + <name>_ch<k>.sigmf-meta (JSON).
 """
 
 import argparse
-import json
+import tarfile
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
 import uhd
+from sigmf import SigMFCollection, SigMFFile
 
 SUBDEV = "A:0 A:1"  # TwinRX RX0 and RX1 on daughterboard slot A
 # ??? why this delay?
@@ -219,7 +220,10 @@ def record(usrp, args, iq_samp_rate, paths):
             f.close()
     return n_written_iq_samps, lost_samps, start_utc
 
-def write_meta(path, s, args, start_utc, lost_samps, n_written_iq_samps):
+def write_meta(path, data_path, s, args, start_utc, lost_samps, n_written_iq_samps):
+    """Build this channel's metadata dict and write it as a SigMF Recording's .sigmf-meta
+    file. Goes through SigMFFile (not a raw JSON dump) so the result is schema-validated
+    before being written, instead of just assumed correct."""
     meta = {
         "global": {
             "core:datatype": "ci16_le",
@@ -229,7 +233,7 @@ def write_meta(path, s, args, start_utc, lost_samps, n_written_iq_samps):
             "core:bytes_per_sample": s["bytes_per_sample"],
             "core:version": "1.0.0",
             "core:num_channels": 1,
-            "core:hw": "USRP X310",
+            "core:motherboard": "USRP X310",
             "x310:daughterboard": s['frontend'],
             "core:recorder": "UHD Python API",
             "core:description": f"{args.args}, channel {s['channel']}",
@@ -253,7 +257,34 @@ def write_meta(path, s, args, start_utc, lost_samps, n_written_iq_samps):
             for start, lost in lost_samps
         ],
     }
-    path.write_text(json.dumps(meta, indent=2))
+    sigmf_file = SigMFFile(metadata=meta, data_file=str(data_path))
+    sigmf_file.validate()
+    sigmf_file.tofile(path, toarchive=False)
+
+
+def build_archive(name, out_dir, meta_paths):
+    """Bundle this session's Recordings (one per channel) into a single SigMF Archive:
+    Archive (<name>.sigmf, a tar file) > Collection (<name>.sigmf-collection, linking every
+    channel's Recording by name + sha512 hash) > Recordings (each channel's .sigmf-meta +
+    .sigmf-data pair) -- matching the SigMF spec's Archive/Collection/Recording structure.
+    The loose per-channel files are removed afterward, leaving just the one archive file."""
+    collection = SigMFCollection(metafiles=[p.name for p in meta_paths], base_path=out_dir)
+    collection_path = out_dir / f"{name}.sigmf-collection"
+    collection.tofile(collection_path, overwrite=True)
+
+    data_paths = [p.with_suffix(".sigmf-data") for p in meta_paths]
+    members = [collection_path, *meta_paths, *data_paths]
+
+    archive_path = out_dir / f"{name}.sigmf"
+    with tarfile.open(archive_path, "w") as tar:
+        for member in members:
+            # one subdirectory named after the archive holding everything flat, same
+            # convention SigMF's own single-recording SigMFArchive uses internally
+            tar.add(member, arcname=f"{name}/{member.name}")
+
+    for member in members:
+        member.unlink()
+    return archive_path
 
 
 def main():
@@ -285,11 +316,17 @@ def main():
     n_written_iq_samps, lost_samps, start_utc = record(usrp, args, iq_samp_rate, data_paths)
 
     # for each channel, write the metadata file and print a summary of what was recorded
+    meta_paths = []
     for setting, basename, data_path in zip(settings, basenames, data_paths):
-        write_meta(basename.parent / f"{basename.name}.sigmf-meta", setting, args, start_utc, lost_samps,
-                   n_written_iq_samps)
+        meta_path = basename.parent / f"{basename.name}.sigmf-meta"
+        write_meta(meta_path, data_path, setting, args, start_utc, lost_samps, n_written_iq_samps)
+        meta_paths.append(meta_path)
         print(f"{data_path}: {n_written_iq_samps} samples ({data_path.stat().st_size / 1e6:.1f} MB)")
     print(f"overflows: {len(lost_samps)} ({sum(n for _, n in lost_samps)} samples lost)")
+
+    # bundle every channel's Recording into one SigMF Archive (Archive > Collection > Recordings)
+    archive_path = build_archive(name, args.out_dir, meta_paths)
+    print(f"archive: {archive_path} ({archive_path.stat().st_size / 1e6:.1f} MB)")
 
 
 if __name__ == "__main__":
