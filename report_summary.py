@@ -161,6 +161,13 @@ def session_subsection_tex(session, record_number):
     antenna_row = " & ".join(tex_escape(meta["global"]["x310:antenna"]) for _, meta, _ in session["channels"])
     dropped_row = " & ".join(str(meta["global"]["x310:dropped_samples"]) for _, meta, _ in session["channels"])
     size_row = " & ".join(f"{size / 1e6:.1f} MB" for _, _, size in session["channels"])
+    # x310:written_samples is only present on recordings made after this field was added;
+    # older ones fall back to deriving it from the file size, same as the duration calc below.
+    written_row = " & ".join(
+        f"{meta['global']['x310:written_samples']:,}" if "x310:written_samples" in meta["global"]
+        else f"{size // meta['global'].get('core:bytes_per_sample', 4):,}"
+        for _, meta, size in session["channels"]
+    )
     duration = session["channels"][0][2] / bytes_per_sample / rate if rate else 0.0
 
     n_channels = len(session["channels"])
@@ -176,10 +183,12 @@ def session_subsection_tex(session, record_number):
         f"Gain & {gain_row} \\\\",
         f"Antenna & {antenna_row} \\\\",
         f"File size & {size_row} \\\\",
+        f"Samples written & {written_row} \\\\",
         f"Lost samples & {dropped_row} \\\\",
         f"Clock source & {span}{{{tex_escape(g0['x310:clock_source'])}}} \\\\",
         f"Time source & {span}{{{tex_escape(g0['x310:time_source'])}}} \\\\",
         f"Hardware & {span}{{{tex_escape(g0['core:hw'])}}} \\\\",
+        f"Recorder & {span}{{{tex_escape(g0['core:recorder'])}}} \\\\",
     ]
 
     lines = [

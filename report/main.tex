@@ -59,18 +59,12 @@ The recording is computed automatically by a Linux service which is driven by th
         day headings=orange,
         day letter headings,
         execute before day scope={%
-          \ifdate{equals=2026-10-07}{%
-            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
-          }{}%
-          \ifdate{equals=2026-10-10}{%
-            \tikzset{every day/.append style={fill=blue!40, shape=rectangle, inner sep=2pt}}%
+          \ifdate{equals=2026-10-08}{%
+            \tikzset{every day/.append style={fill=blue!40, text=blue, shape=rectangle, inner sep=2pt}}%
           }{}%
         },
         execute after day scope={%
-          \ifdate{equals=2026-10-07}{%
-            \tikzset{every day/.style={anchor=base east}}%
-          }{}%
-          \ifdate{equals=2026-10-10}{%
+          \ifdate{equals=2026-10-08}{%
             \tikzset{every day/.style={anchor=base east}}%
           }{}%
         }]
@@ -116,6 +110,8 @@ The recording is computed automatically by a Linux service which is driven by th
     \hline
     File size & 2400.0 MB & 2400.0 MB \\
     \hline
+    Samples written & 600,000,000 & 600,000,000 \\
+    \hline
     Lost samples & 0 & 0 \\
     \hline
     Clock source & \multicolumn{2}{c|}{external} \\
@@ -123,6 +119,8 @@ The recording is computed automatically by a Linux service which is driven by th
     Time source & \multicolumn{2}{c|}{internal} \\
     \hline
     Hardware & \multicolumn{2}{c|}{USRP X310 / TwinRX RX0} \\
+    \hline
+    Recorder & \multicolumn{2}{c|}{UHD Python API (usrp-x310/main.py)} \\
     \hline
   \end{tabular}
   \caption{Metadata for recording \texttt{x310\_20261008T195503Z}, captured starting 2026-10-08T19:55:09.323975Z.}

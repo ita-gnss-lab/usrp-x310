@@ -159,7 +159,7 @@ def record(usrp, args, iq_samp_rate, paths):
 
     # total number of I/Q samples (per channel) the recording should stop at — the stopping condition for the receive loop.
     total_iq_samp_per_chan = round(args.duration * iq_samp_rate)
-    written_iq_samps = 0
+    n_written_iq_samps = 0
     # number of samples that were lost
     lost_samps = []
 
@@ -184,7 +184,7 @@ def record(usrp, args, iq_samp_rate, paths):
     # create an empty buffer array to hold the received samples
     buf = np.empty((len(args.channels), max_samples_per_packet), dtype=np.uint32)
     try:
-        while written_iq_samps < total_iq_samp_per_chan:
+        while n_written_iq_samps < total_iq_samp_per_chan:
             # Pulls one batch of received I/Q samples from the USRP into buf, waiting up to timeout seconds if none have arrived yet, and returns how many samples it actually got this call (n_iq_samp_this_call).
             n_iq_samp_this_call = streamer.recv(buf, md, timeout)
             timeout = 0.5
@@ -201,14 +201,14 @@ def record(usrp, args, iq_samp_rate, paths):
             if md.has_time_spec:
                 n_expected_iq_samps = round((md.time_spec.get_real_secs() - START_DELAY) * iq_samp_rate)
                 # if we have lost samples, record them
-                if n_expected_iq_samps > written_iq_samps:
-                    lost_samps.append((written_iq_samps, n_expected_iq_samps - written_iq_samps))
-                    print(f"overflow: {n_expected_iq_samps - written_iq_samps} samples lost at sample {written_iq_samps}")
+                if n_expected_iq_samps > n_written_iq_samps:
+                    lost_samps.append((n_written_iq_samps, n_expected_iq_samps - n_written_iq_samps))
+                    print(f"overflow: {n_expected_iq_samps - n_written_iq_samps} samples lost at sample {n_written_iq_samps}")
 
-            n_iq_samp_to_write = min(n_iq_samp_this_call, total_iq_samp_per_chan - written_iq_samps)
+            n_iq_samp_to_write = min(n_iq_samp_this_call, total_iq_samp_per_chan - n_written_iq_samps)
             for f, row in zip(files, buf):
                 row[:n_iq_samp_to_write].tofile(f)
-            written_iq_samps += n_iq_samp_to_write
+            n_written_iq_samps += n_iq_samp_to_write
     except KeyboardInterrupt:
         print("interrupted, finalizing files")
     finally:
@@ -217,9 +217,9 @@ def record(usrp, args, iq_samp_rate, paths):
             pass
         for f in files:
             f.close()
-    return written_iq_samps, lost_samps, start_utc
+    return n_written_iq_samps, lost_samps, start_utc
 
-def write_meta(path, s, args, start_utc, lost_samps):
+def write_meta(path, s, args, start_utc, lost_samps, n_written_iq_samps):
     meta = {
         "global": {
             "core:datatype": "ci16_le",
@@ -238,7 +238,8 @@ def write_meta(path, s, args, start_utc, lost_samps):
             "x310:clock_source": args.clock_source,
             "x310:time_source": args.time_source,
             "x310:start_delay": START_DELAY,
-            "x310:dropped_samples": sum(n for _, n in lost_samps),
+            "x310:lost_samples": sum(n for _, n in lost_samps),
+            "x310:written_samples": n_written_iq_samps,
         },
         "captures": [{
             "core:sample_start": 0,
@@ -247,7 +248,7 @@ def write_meta(path, s, args, start_utc, lost_samps):
         }],
         "annotations": [
             {"core:sample_start": start, "core:sample_count": 0,
-             "core:comment": "overflow", "x310:dropped_samples": lost}
+             "core:comment": "overflow", "x310:lost_samples": lost}
             for start, lost in lost_samps
         ],
     }
@@ -280,12 +281,13 @@ def main():
     data_paths = [b.parent / f"{b.name}.sigmf-data" for b in basenames]
     
     # start the record
-    written, lost_samps, start_utc = record(usrp, args, iq_samp_rate, data_paths)
+    n_written_iq_samps, lost_samps, start_utc = record(usrp, args, iq_samp_rate, data_paths)
 
     # for each channel, write the metadata file and print a summary of what was recorded
     for setting, basename, data_path in zip(settings, basenames, data_paths):
-        write_meta(basename.parent / f"{basename.name}.sigmf-meta", setting, args, start_utc, lost_samps)
-        print(f"{data_path}: {written} samples ({data_path.stat().st_size / 1e6:.1f} MB)")
+        write_meta(basename.parent / f"{basename.name}.sigmf-meta", setting, args, start_utc, lost_samps,
+                   n_written_iq_samps)
+        print(f"{data_path}: {n_written_iq_samps} samples ({data_path.stat().st_size / 1e6:.1f} MB)")
     print(f"overflows: {len(lost_samps)} ({sum(n for _, n in lost_samps)} samples lost)")
 
 
