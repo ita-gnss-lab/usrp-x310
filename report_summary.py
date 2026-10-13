@@ -12,9 +12,10 @@ a state file, defaulting to 15 days back on first run), and:
      OpenWA gateway (https://github.com/rmyndharis/OpenWA). See
      notify_whatsapp.py for a single-recording notification instead of this
      periodic aggregate.
-  2. appends one "Records on dd/mm/yyyy -- First/Second record" subsection
-     per session, each a metadata table, into --tex-path's "Recording
-     reports" section (just before \\end{document}).
+  2. appends one \\subsection{Records on dd/mm/yyyy} per day (holding one
+     \\subsubsection{First/Second/... record} per session, each a metadata
+     table) into --tex-path's "Recording reports" section (just before
+     \\end{document}).
   3. compiles --tex-path (via `make compile` in its directory, reusing the
      report's own Makefile/build toolchain) and sends the resulting PDF as
      a WhatsApp document to the same recipient.
@@ -154,11 +155,10 @@ def tex_escape(text):
     return str(text).translate(_TEX_SPECIAL)
 
 
-def session_subsection_tex(session, record_number):
-    """Build one '\\subsection{...}' + metadata table for a single recording session."""
+def session_subsubsection_tex(session, record_number):
+    """Build one '\\subsubsection{...}' + metadata table for a single recording session."""
     g0 = session["channels"][0][1]["global"]
     cap0 = session["channels"][0][1]["captures"][0]
-    date_str = session["datetime"].strftime("%d/%m/%Y")
     start_str = session["datetime"].strftime("%Y-%m-%d %H:%M:%S UTC")
     rate = g0["core:sample_rate"]
     bytes_per_sample = g0["core:bytes_per_sample"]
@@ -199,7 +199,7 @@ def session_subsection_tex(session, record_number):
     ]
 
     lines = [
-        f"\\subsection{{Records on {date_str} -- {ordinal(record_number)} record}}",
+        f"\\subsubsection{{{ordinal(record_number)} record}}",
         r"\begin{table}[H]",
         r"  \centering",
         f"  \\begin{{tabular}}{{{col_spec}}}",
@@ -268,18 +268,36 @@ def _day_ordinal(session, all_sessions):
 
 
 def append_to_report(sessions, tex_path, all_sessions):
-    """Append one subsection per session to tex_path's document, just before \\end{document}.
-    all_sessions (every session on disk, not just the ones being appended) is what makes the
-    First/Second/... ordinal correct across multiple runs of this script on the same day."""
+    """Append one \\subsection per day (each holding a \\subsubsection per recording that
+    day) to tex_path's document, just before \\end{document}. all_sessions (every session
+    on disk, not just the ones being appended) is what makes the First/Second/... ordinal
+    correct across multiple runs of this script on the same day.
+
+    New sessions always arrive in non-decreasing date order (sessions is sorted by
+    datetime), so only the LAST "Records on ..." subsection heading already in the
+    document is ever relevant: if it's the same day as the next new session, that
+    session's subsubsection is appended under it with no new heading; otherwise a new
+    day subsection is started. This avoids ever splitting one day's recordings across
+    two separate \\subsection blocks just because this script ran once per recording
+    instead of once per day."""
     if not sessions:
         return
     if not tex_path.exists():
         print(f"warning: {tex_path} not found, skipping LaTeX report update")
         return
 
-    blocks = [session_subsection_tex(s, _day_ordinal(s, all_sessions)) for s in sessions]
-
     text = tex_path.read_text()
+    existing_days = re.findall(r"\\subsection\{Records on (\d{2}/\d{2}/\d{4})\}", text)
+    current_day = existing_days[-1] if existing_days else None
+
+    blocks = []
+    for s in sessions:
+        date_str = s["datetime"].strftime("%d/%m/%Y")
+        if date_str != current_day:
+            blocks.append(f"\\subsection{{Records on {date_str}}}")
+            current_day = date_str
+        blocks.append(session_subsubsection_tex(s, _day_ordinal(s, all_sessions)))
+
     marker = r"\end{document}"
     if marker not in text:
         print(f"warning: no {marker!r} found in {tex_path}, skipping LaTeX report update")
@@ -288,7 +306,7 @@ def append_to_report(sessions, tex_path, all_sessions):
     insertion = "\n" + "\n\n".join(blocks) + "\n\n"
     text = text.replace(marker, insertion + marker, 1)
     tex_path.write_text(text)
-    print(f"appended {len(blocks)} subsection(s) to {tex_path}")
+    print(f"appended {len(sessions)} subsection(s) to {tex_path}")
 
 
 def main():
