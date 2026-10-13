@@ -309,6 +309,102 @@ def append_to_report(sessions, tex_path, all_sessions):
     print(f"appended {len(sessions)} subsection(s) to {tex_path}")
 
 
+def calendar_tikz_block(year, month, day_counts):
+    """Build one calendar-month \\tikzpicture, matching the hand-written original's style:
+    a day is filled green if 2 recordings happened that day, blue if 1, left uncolored
+    if 0. day_counts: {date: count}, only entries for this (year, month) are used."""
+    month_str = f"{year:04d}-{month:02d}"
+    highlighted = sorted(d for d, c in day_counts.items()
+                          if d.year == year and d.month == month and c > 0)
+
+    fill_lines, anchor_lines = [], []
+    for day in highlighted:
+        color = "green" if day_counts[day] >= 2 else "blue"
+        fill_lines.append(
+            f"          \\ifdate{{equals={day.isoformat()}}}{{%\n"
+            f"            \\tikzset{{every day/.append style={{fill={color}!40, text=blue, "
+            f"shape=rectangle, inner sep=2pt}}}}%\n"
+            f"          }}{{}}%"
+        )
+        anchor_lines.append(
+            f"          \\ifdate{{equals={day.isoformat()}}}{{%\n"
+            f"            \\tikzset{{every day/.style={{anchor=base east}}}}%\n"
+            f"          }}{{}}%"
+        )
+
+    return "\n".join([
+        r"    \begin{tikzpicture}[day xshift=3ex, day yshift=3ex]",
+        r"    % month title and weekday-initials header, placed manually (one calendar",
+        "    % \"row\" apart each) since the built-in month label collides with a header row",
+        f"    \\calendar[dates={month_str}-01 to {month_str}-last,",
+        r"        week list,",
+        r"        month label above centered,",
+        r"        day xshift = 0.6cm,",
+        r"        day headings=orange,",
+        r"        day letter headings,",
+        r"        execute before day scope={%",
+        *fill_lines,
+        r"        },",
+        r"        execute after day scope={%",
+        *anchor_lines,
+        r"        }]",
+        r"        ;",
+        r"    %   if (Sunday) [red]",
+        r"    %   if (Saturday) [red];",
+        r"  \end{tikzpicture}",
+    ])
+
+
+_CALENDAR_TABLE_RE = re.compile(r"\\begin\{table\}\[H\].*?Recording calendar\..*?\\end\{table\}", re.DOTALL)
+
+
+def calendar_table_tex(all_sessions):
+    """Build the whole calendar table: one \\tikzpicture per (year, month) that has at
+    least one recording, 3 per row (matching the hand-written original's ccc layout),
+    padding any trailing empty cells with '% PLACEHOLDER' like the original did."""
+    day_counts = defaultdict(int)
+    for s in all_sessions:
+        day_counts[s["datetime"].date()] += 1
+
+    months = sorted({(d.year, d.month) for d in day_counts})
+    blocks = [calendar_tikz_block(year, month, day_counts) for year, month in months]
+
+    rows = []
+    for i in range(0, len(blocks), 3):
+        cells = blocks[i:i + 3]
+        while len(cells) < 3:
+            cells.append("  % PLACEHOLDER")
+        rows.append("\n  &\n".join(cells) + "\n  \\\\[2ex]")
+
+    return "\n".join([
+        r"\begin{table}[H]",
+        r"  \centering",
+        r"  \begin{tabular}{ccc}",
+        "\n".join(rows),
+        r"  \end{tabular}",
+        r"  \caption{Recording calendar. \textcolor{green}{Green}: 2 recordings made; "
+        r"\textcolor{blue}{blue}: 1 recording made. No color: no recording made.}",
+        r"\end{table}",
+    ])
+
+
+def update_calendar_table(tex_path, all_sessions):
+    """Replace the existing 'Recording calendar' table in tex_path with a freshly
+    generated one covering every month with at least one recording. Uses a plain slice
+    replacement (not re.sub's replacement string) since the generated LaTeX is full of
+    backslashes that re.sub would otherwise try to interpret as backreferences."""
+    if not tex_path.exists() or not all_sessions:
+        return
+    text = tex_path.read_text()
+    m = _CALENDAR_TABLE_RE.search(text)
+    if not m:
+        print(f"warning: no 'Recording calendar' table found in {tex_path}, skipping calendar update")
+        return
+    text = text[:m.start()] + calendar_table_tex(all_sessions) + text[m.end():]
+    tex_path.write_text(text)
+    print(f"updated calendar table in {tex_path}")
+
+
 def main():
     args = parse_args()
     api_key = args.api_key or os.environ.get("OPENWA_API_KEY")
@@ -347,6 +443,7 @@ def main():
 
     append_to_report(selected, args.tex_path, sessions)
     if selected:
+        update_calendar_table(args.tex_path, sessions)
         pdf_path = compile_report_pdf(args.tex_path)
         print(f"compiled {pdf_path}")
         doc_result = send_document(

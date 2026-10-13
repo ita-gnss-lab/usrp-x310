@@ -62,9 +62,15 @@ The recording is computed automatically by a Linux service which is driven by th
           \ifdate{equals=2026-10-08}{%
             \tikzset{every day/.append style={fill=blue!40, text=blue, shape=rectangle, inner sep=2pt}}%
           }{}%
+          \ifdate{equals=2026-10-13}{%
+            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
         },
         execute after day scope={%
           \ifdate{equals=2026-10-08}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+          \ifdate{equals=2026-10-13}{%
             \tikzset{every day/.style={anchor=base east}}%
           }{}%
         }]
