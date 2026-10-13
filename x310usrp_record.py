@@ -42,7 +42,7 @@ def parse_args():
                         f"{GPS_L5_FREQ / 1e6:g}e6, i.e. GPS L1 and L5)")
     p.add_argument("--iq-rate", type=float, default=2e6, help="sample rate [S/s] at which the IQ samples are recorded (default: 2e6)")
     p.add_argument("--gain", type=float, nargs="+", default=[DEFAULT_GAIN_DB],
-                   help="gain [dB], one value or one per channel (default: {DEFAULT_GAIN_DB})")
+                   help=f"gain [dB], one value or one per channel (default: {DEFAULT_GAIN_DB})")
     p.add_argument("--duration", type=float, default=300.0, help="recording length [s] (default: 300.0)")
     p.add_argument("--channels", type=int, nargs="+", default=[0, 1],
                    help="channel indices (0=RX0, 1=RX1) (default: 0 1)")

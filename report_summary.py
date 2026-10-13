@@ -256,20 +256,28 @@ def compile_report_pdf(tex_path):
     return pdf_path
 
 
-def append_to_report(sessions, tex_path):
-    """Append one subsection per session to tex_path's document, just before \\end{document}."""
+def _day_ordinal(session, all_sessions):
+    """Which recording of the day this session is (1st, 2nd, ...), counted across every
+    session on disk for that day -- not just the batch being appended this run. Needed
+    because this script can run once per recording (not just once per 15-day digest), so
+    a same-day counter reset per invocation would mislabel every run after the first."""
+    day = session["datetime"].date()
+    same_day_up_to_now = [s for s in all_sessions
+                           if s["datetime"].date() == day and s["datetime"] <= session["datetime"]]
+    return len(same_day_up_to_now)
+
+
+def append_to_report(sessions, tex_path, all_sessions):
+    """Append one subsection per session to tex_path's document, just before \\end{document}.
+    all_sessions (every session on disk, not just the ones being appended) is what makes the
+    First/Second/... ordinal correct across multiple runs of this script on the same day."""
     if not sessions:
         return
     if not tex_path.exists():
         print(f"warning: {tex_path} not found, skipping LaTeX report update")
         return
 
-    per_day = defaultdict(int)
-    blocks = []
-    for s in sessions:
-        day = s["datetime"].date()
-        per_day[day] += 1
-        blocks.append(session_subsection_tex(s, per_day[day]))
+    blocks = [session_subsection_tex(s, _day_ordinal(s, all_sessions)) for s in sessions]
 
     text = tex_path.read_text()
     marker = r"\end{document}"
@@ -316,19 +324,19 @@ def main():
         print("--dry-run: not sending, not advancing the last-report marker")
         return
 
-    # result = send_whatsapp(args.base_url, api_key, session, to, body)
-    # print(f"sent: {result}")
+    result = send_whatsapp(args.base_url, api_key, session, to, body)
+    print(f"sent: {result}")
 
-    append_to_report(selected, args.tex_path)
+    append_to_report(selected, args.tex_path, sessions)
     if selected:
         pdf_path = compile_report_pdf(args.tex_path)
         print(f"compiled {pdf_path}")
-        # doc_result = send_document(
-        #     args.base_url, api_key, session, to, pdf_path,
-        #     filename="USRP_X310_Report.pdf",
-        #     caption=f"USRP X310 recording report: {cutoff.date()} to {now.date()}",
-        # )
-        # print(f"sent document: {doc_result}")
+        doc_result = send_document(
+            args.base_url, api_key, session, to, pdf_path,
+            filename="USRP_X310_Report.pdf",
+            caption=f"USRP X310 recording report: {cutoff.date()} to {now.date()}",
+        )
+        print(f"sent document: {doc_result}")
 
     marker.write_text(now.isoformat())
 
