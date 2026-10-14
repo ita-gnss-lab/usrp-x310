@@ -9,6 +9,7 @@
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{xcolor}
+\usepackage{amssymb}
 \usepackage{listings}
 \usepackage[hidelinks]{hyperref}
 
@@ -23,7 +24,7 @@
   showstringspaces=false
 }
 
-\title{USRP X310 + TwinRX Configuration on Ubuntu and MATLAB R2026a}
+\title{USRP X310 + TwinRX Configuration on Ubuntu and Python}
 \author{Rubem Vasconcelos  Pacelli \\ Aeronautics Institute of Technology}
 
 \date{\today}
@@ -43,7 +44,7 @@ The setup considered here is:
     \item Ubuntu host computer connected to X310 port~0 through Ethernet;
     \item external 10~MHz frequency reference connected to \texttt{REF IN};
     \item no external PPS is connected;
-    \item MATLAB R2026a with the add-on named ``Wireless Testbench support for NI USRP radios''.
+    \item Python 3.12 with UHD's Python bindings (\texttt{python3-uhd}) and the \texttt{sigmf} package, managed with \texttt{uv}.
 \end{itemize}
 
 The TwinRX is receive-only. Therefore, the current setup has two usable receive channels and no usable RF transmit chain.
@@ -63,20 +64,6 @@ Subnet mask & \texttt{255.255.255.0} & Equivalent to \texttt{/24} \\
 \bottomrule
 \end{tabular}
 \end{center}
-
-% The Linux Ethernet interface name used here is:
-
-% \begin{lstlisting}
-% enp109s0
-% \end{lstlisting}
-
-% This interface name is different from the NetworkManager profile name. For example:
-
-% \begin{lstlisting}
-% NetworkManager profile: usrp_x310_network_profile
-% Linux interface:         enp109s0
-% Host IPv4 address:       192.168.10.1/24
-% \end{lstlisting}
 
 \section{Create a persistent Ubuntu network profile}
 
@@ -170,7 +157,7 @@ Install UHD host utilities if necessary:
 
 \begin{lstlisting}[language=bash]
 sudo apt update
-sudo apt install uhd-host
+sudo apt install uhd-host python3-uhd
 \end{lstlisting}
 
 Discover the radio:
@@ -207,44 +194,175 @@ Sensors: lo_locked
 
 Thus, one physical TwinRX daughterboard contains two receive front-ends/channels.
 
-\section{MATLAB software to use}
+\section{Python environment setup}
 
-For an X310, look for the following add-on in the MATLAB Add-On Explorer:
+Recording is done with a small set of Python scripts (\texttt{x310usrp\_record.py}, \texttt{check\_levels.py}, \texttt{report\_summary.py}) in the project repository, managed with \texttt{uv}. UHD's Python bindings come from the \texttt{python3-uhd} apt package and only work with the system Python~3.12, so the \texttt{uv} virtual environment must be created with system site-packages enabled rather than a fully isolated one:
 
-\begin{center}
-\textbf{NI USRP Radio Support from Wireless Testbench}
-\end{center}
-
-The older \textbf{Communications Toolbox Support Package for USRP Radio} is not required for this X310 setup.
-
-Check installed support packages with:
-
-\begin{lstlisting}[language=Matlab]
-matlabshared.supportpkg.getInstalled
+\begin{lstlisting}[language=bash]
+cd usrp-x310
+rm -rf .venv
+uv venv --python /usr/bin/python3 --system-site-packages
+uv sync
 \end{lstlisting}
 
-The installed package should include something similar to:
+\texttt{uv sync} installs the project's remaining dependencies declared in \texttt{pyproject.toml}: \texttt{numpy} (version-pinned to stay ABI-compatible with the system numpy that \texttt{python3-uhd} was built against) and \texttt{sigmf}, the official SigMF-project library used to build and validate the recording files.
+
+\section{Recording I/Q samples with \texttt{x310usrp\_record.py}}
+
+\texttt{x310usrp\_record.py} streams both TwinRX channels straight to disk and bundles the result into a single SigMF Archive. Typical usage:
+
+\begin{lstlisting}[language=bash]
+uv run x310usrp_record.py --duration 5                        # L1 + L5, 5 s
+uv run x310usrp_record.py --freq 1575.42e6 --channels 0       # L1 only
+uv run x310usrp_record.py --iq-rate 5e6 --gain 15 --name test1
+uv run x310usrp_record.py --help                               # all options, with defaults
+\end{lstlisting}
+
+The defaults reproduce the dual-frequency GNSS setup used in this lab: GPS L1 (1575.42~MHz) on RX0 and GPS L5 (1176.45~MHz) on RX1, at 2~MS/s, with the external 10~MHz clock reference and 20~dB of RX gain (see Section~\ref{sec:gain} for how that gain value was chosen).
+
+\subsection{SigMF Archive output}
+
+Each run produces a single file, \texttt{recordings/<name>.sigmf}, following the SigMF specification's Archive~$\rightarrow$~Collection~$\rightarrow$~Recording structure: the \texttt{.sigmf} file is a plain tar archive containing one \texttt{.sigmf-collection} JSON file (linking the two channels' recordings by name and SHA-512 hash) and, for each channel, one \texttt{.sigmf-meta} (JSON metadata: sample rate, frequency, gain, antenna, motherboard/daughterboard, start time, lost/written sample counts) and one \texttt{.sigmf-data} file (interleaved \texttt{int16} I/Q, little-endian). Listing one archive's contents:
+
+\begin{lstlisting}[language=bash]
+tar -tvf recordings/x310_20261009T160000Z.sigmf
+\end{lstlisting}
 
 \begin{lstlisting}
-Wireless Testbench Support Package for NI USRP Radios
+x310_20261009T160000Z/x310_20261009T160000Z.sigmf-collection
+x310_20261009T160000Z/x310_20261009T160000Z_ch0.sigmf-meta
+x310_20261009T160000Z/x310_20261009T160000Z_ch1.sigmf-meta
+x310_20261009T160000Z/x310_20261009T160000Z_ch0.sigmf-data
+x310_20261009T160000Z/x310_20261009T160000Z_ch1.sigmf-data
 \end{lstlisting}
 
-\section{MATLAB Radio Setup Wizard}
+Over 1~GbE, keep \texttt{channels~$\times$~rate} $\lesssim$ 25~MS/s (about 12.5~MS/s per channel when recording both). X310 rates are 200~MHz divided by an integer, so the requested rate may be coerced; the script prints the actual value used.
 
-Open the radio setup workflow from MATLAB and configure the radio as an X310 with:
+\subsection{Loading the recorded samples in Python}
+
+Each channel's complex I/Q samples can be read directly out of the archive without extracting it to disk first:
+
+\begin{lstlisting}[language=Python]
+import tarfile
+import numpy as np
+
+with tarfile.open("recordings/x310_20261009T160000Z.sigmf") as tar:
+    member = next(m for m in tar.getmembers() if m.name.endswith("_ch0.sigmf-data"))
+    raw = tar.extractfile(member).read()
+
+L1 = np.frombuffer(raw, dtype=np.int16).astype(np.float32).view(np.complex64)
+\end{lstlisting}
+
+Replace \texttt{\_ch0} with \texttt{\_ch1} for the GPS~L5 channel.
+
+\section{Checking signal levels and choosing \texttt{--gain}}
+\label{sec:gain}
+
+TwinRX's RX gain is a fixed, manually-set Programmable Gain Amplifier (PGA) stage, not an AGC loop (UHD's generic \texttt{set\_rx\_agc()} call raises \texttt{NotImplementedError} on TwinRX) -- so the right gain has to be chosen once and does not adjust itself during a recording.
+
+Because GNSS signals sit 15--20~dB below the thermal noise floor, there is no ``signal'' to look for when picking a gain: the real goal is placing the composite \emph{noise floor} correctly within the ADC's dynamic range -- high enough that quantization noise does not matter, low enough that strong interferers do not clip the rails. \texttt{check\_levels.py} reports exactly this, directly from an archive's raw samples:
+
+\begin{lstlisting}[language=bash]
+uv run x310usrp_record.py --duration 10 --gain 12
+uv run check_levels.py recordings/x310_<timestamp>.sigmf
+\end{lstlisting}
+
+It prints each channel's I/Q standard deviation against a target band (1/16 to 1/3 of \texttt{int16} full-scale, i.e.\ 32768) and the percentage of clipped samples, with a one-line verdict (raise/lower \texttt{--gain}, or OK). With a 20~dB external active LNA already in this lab's RF chain ahead of the USRP, \textbf{20~dB} of additional TwinRX gain was found to keep both channels comfortably inside that target band with no clipping; re-run the check if the antenna, cable, or LNA changes.
+
+\section{Automating recordings with systemd}
+\label{sec:record-service}
+
+Scheduled, unattended recording is driven by a timer/service pair in \texttt{systemd/}, enforcing (independently of the timer's own schedule, so a manual trigger or a missed/caught-up run can never violate them):
 
 \begin{itemize}[leftmargin=*]
-    \item Slot A: TwinRX;
-    \item Slot B: None;
-    \item network interface: 1 Gigabit Ethernet;
-    \item X310 address: \texttt{192.168.10.2}.
+    \item recording only inside the \texttt{[16:00, 18:00)} local-time window;
+    \item at most two recordings per calendar day;
+    \item the second recording starting at least 30~min after the first;
+    \item sensing the USRP via \texttt{uhd\_find\_devices} before attempting to record, retrying silently every 15~min if it is not reachable.
 \end{itemize}
 
-The antenna or RF front-end does not need to be connected merely to validate Ethernet and basic radio setup.
+\texttt{x310-record.timer} fires every 15~min between 16:00 and 18:00; \texttt{x310-record.sh} (invoked by \texttt{x310-record.service}) is what actually evaluates all of the conditions above and, if they pass, runs \texttt{x310usrp\_record.py}. Install and enable it with:
+
+\begin{lstlisting}[language=bash]
+sudo ln -s $PWD/systemd/x310-record.service /etc/systemd/system/
+sudo ln -s $PWD/systemd/x310-record.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now x310-record.timer
+\end{lstlisting}
+
+Using symlinks rather than copying the unit files means editing them in the repository takes effect after a \texttt{daemon-reload}, with no separate install step. Check what is scheduled, and inspect a run's output, with:
+
+\begin{lstlisting}[language=bash]
+systemctl list-timers x310-record.timer
+journalctl -u x310-record.service
+\end{lstlisting}
+
+\section{Fortnightly WhatsApp report}
+\label{sec:report-service}
+
+Every 15~days, a short text summary and a compiled PDF of this very report are sent over WhatsApp to the lab head, via a self-hosted \href{https://github.com/rmyndharis/OpenWA}{OpenWA} gateway. OpenWA automates the unofficial WhatsApp Web client (not Meta's official API), so its own documentation notes a real, non-zero account-ban risk; using a dedicated number rather than a personal one is recommended.
+
+\subsection{One-time OpenWA setup}
+
+\begin{lstlisting}[language=bash]
+git clone https://github.com/rmyndharis/OpenWA && cd OpenWA
+docker compose -f docker-compose.dev.yml up -d
+docker exec openwa-api cat /app/data/.api-key   # save as OPENWA_API_KEY
+\end{lstlisting}
+
+Create a session (the \texttt{"name"} given here is only a label; OpenWA assigns its own UUID, returned as \texttt{"id"}, which is what every later call -- including \texttt{OPENWA\_SESSION} below -- must use):
+
+\begin{lstlisting}[language=bash]
+curl -X POST http://localhost:2785/api/sessions \
+     -H "X-API-Key: $OPENWA_API_KEY" -H "Content-Type: application/json" \
+     -d '{"name": "x310-notifier"}'
+\end{lstlisting}
+
+Start it and fetch its QR code, then scan the QR with the WhatsApp account that should send the reports (WhatsApp app~$\rightarrow$~Linked Devices~$\rightarrow$~Link a Device):
+
+\begin{lstlisting}[language=bash]
+curl -X POST http://localhost:2785/api/sessions/<uuid>/start -H "X-API-Key: $OPENWA_API_KEY"
+curl http://localhost:2785/api/sessions/<uuid>/qr -H "X-API-Key: $OPENWA_API_KEY"
+\end{lstlisting}
+
+Finally, store the three secrets the report service needs in a \texttt{.env} file at the repository root (already excluded from version control):
+
+\begin{lstlisting}
+OPENWA_API_KEY=<api key from above>
+OPENWA_SESSION=<session uuid from above>
+REPORT_WHATSAPP_TO=<recipient phone number, e.g. +55...>
+\end{lstlisting}
+
+\subsection{\texttt{report\_summary.py}}
+
+On each run, \texttt{report\_summary.py} scans \texttt{recordings/} for every \texttt{.sigmf} archive newer than the last report (tracked in a state file, defaulting to 15~days back on first run); for those, it
+
+\begin{enumerate}[leftmargin=*]
+    \item sends a short WhatsApp text digest -- recording counts, data volume, lost samples, and which days (if any) had no recording;
+    \item appends one subsection per day (holding one sub-subsection per recording that day, each a metadata table) and refreshes the recording-calendar table in \texttt{report/main.tex};
+    \item recompiles \texttt{report/main.tex} and sends the resulting PDF as a WhatsApp document.
+\end{enumerate}
+
+Run manually, loading the secrets from \texttt{.env}:
+
+\begin{lstlisting}[language=bash]
+uv run --env-file .env report_summary.py
+\end{lstlisting}
+
+\subsection{Automating the report}
+
+Analogous to the recording service, \texttt{x310-report.timer} fires \texttt{x310-report.service} on a \emph{relative} schedule -- exactly 15~days after the previous run, rather than approximating with calendar-day arithmetic:
+
+\begin{lstlisting}[language=bash]
+sudo ln -s $PWD/systemd/x310-report.service /etc/systemd/system/
+sudo ln -s $PWD/systemd/x310-report.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now x310-report.timer
+\end{lstlisting}
 
 \section{Clock source, time source, and LO source}
 
-These three settings have different purposes.
+These three settings have different purposes. They are set directly as command-line flags to \texttt{x310usrp\_record.py} (see also Section~\ref{sec:record-service}'s underlying \texttt{uv run x310usrp\_record.py} invocation).
 
 \subsection{Clock source}
 
@@ -252,8 +370,8 @@ The clock source provides the precision frequency reference used by the radio cl
 
 With an external 10~MHz reference connected to \texttt{REF IN}, use:
 
-\begin{lstlisting}
-Clock Source = external
+\begin{lstlisting}[language=bash]
+--clock-source external
 \end{lstlisting}
 
 The 10~MHz reference does not enter through an RF receive connector.
@@ -264,30 +382,21 @@ The time source establishes the timing reference for the radio time counter, typ
 
 Because no external PPS is connected in the present setup, use:
 
-\begin{lstlisting}
-Time Source = internal
+\begin{lstlisting}[language=bash]
+--time-source internal
 \end{lstlisting}
 
-If a 1~PPS signal were connected to the X310 PPS input, \texttt{Time Source = external} could be used.
+If a 1~PPS signal were connected to the X310 PPS input, \texttt{--time-source external} could be used; \texttt{x310usrp\_record.py} then also waits for a PPS edge to actually be detected (by checking that \texttt{get\_time\_last\_pps()} advances between two reads) before recording, since UHD has no boolean ``PPS locked'' sensor the way it does for the reference clock and the LOs.
 
 \subsection{LO source}
 
-The LO is the RF local oscillator used by the mixer to translate the received RF signal to IF/baseband.
-
-With:
-
-\begin{lstlisting}
-Clock Source = external
-LO Source    = internal
-\end{lstlisting}
-
-the TwinRX uses its internal PLL/frequency synthesizer, but that synthesizer is referenced to the external 10~MHz signal. Conceptually:
+The LO is the RF local oscillator used by the mixer to translate the received RF signal to IF/baseband. \texttt{x310usrp\_record.py} always uses each channel's internal LO synthesizer, referenced to the external 10~MHz signal selected above:
 
 \begin{center}
 External 10~MHz $\rightarrow$ REF IN $\rightarrow$ internal PLL/synthesizer $\rightarrow$ RF LO $\rightarrow$ mixer
 \end{center}
 
-Setting \texttt{LO Source = external} would mean supplying the actual RF LO signal from an external RF generator. It does \emph{not} mean using the 10~MHz reference because it is not the correct frequency for the RF mixing stage.
+An external LO would instead mean supplying the actual RF LO signal from an external RF generator -- not the same thing as the 10~MHz reference, which is the wrong frequency for the RF mixing stage.
 
 \section{Two-channel TwinRX tuning}
 
@@ -295,80 +404,22 @@ TwinRX has two receive channels. Their LO configuration determines whether they 
 
 \subsection{Same frequency with phase coherence}
 
-For two channels receiving the same RF frequency with phase coherence, LO sharing can be used. One channel generates the LO and the other uses it as a \texttt{companion}.
-
-This is appropriate when both channels observe the same RF band and relative phase is important.
+For two channels receiving the same RF frequency with phase coherence, LO sharing can be used: one channel generates the LO and the other uses it as a companion. This is appropriate when both channels observe the same RF band and relative phase is important. \texttt{x310usrp\_record.py} does not use this mode.
 
 \subsection{Different frequencies}
 
-For independent center frequencies, both channels must use independent internal LOs. In that case, do not enable TwinRX phase synchronization.
-
-For example:
+For independent center frequencies, both channels must use independent internal LOs -- TwinRX phase synchronization must not be enabled. This is exactly the case here:
 
 \begin{itemize}[leftmargin=*]
-    \item Channel 1: GPS L1 = 1575.42~MHz;
-    \item Channel 2: GPS L5 = 1176.45~MHz.
+    \item Channel 0: GPS L1 = 1575.42~MHz;
+    \item Channel 1: GPS L5 = 1176.45~MHz.
 \end{itemize}
 
-Because L1 and L5 are separated by about 399~MHz, they cannot be obtained from one shared analog LO using only a digital frequency offset. They require independent analog LO tuning.
+Because L1 and L5 are separated by about 399~MHz, they cannot be obtained from one shared analog LO using only a digital frequency offset; they require independent analog LO tuning, which is what each channel's own \texttt{set\_rx\_freq} call in \texttt{x310usrp\_record.py} sets up.
 
-\section{Saved MATLAB radio configuration}
+\section{Verifying lock status}
 
-The saved configuration used here is:
-
-\begin{lstlisting}
-"My USRP X310 (TwinRX, None)"
-\end{lstlisting}
-
-Display saved configurations with:
-
-\begin{lstlisting}[language=Matlab]
-radioConfigurations
-\end{lstlisting}
-
-Create the corresponding MATLAB radio object with:
-
-\begin{lstlisting}[language=Matlab]
-radio = radioConfigurations("My USRP X310 (TwinRX, None)");
-\end{lstlisting}
-
-For the present hardware configuration, the saved settings are expected to be:
-
-\begin{lstlisting}
-ClockSource: external
-TimeSource:  internal
-LOSource:    ["internal" "internal"]
-\end{lstlisting}
-
-\section{Check the external 10 MHz reference in MATLAB}
-
-Check whether the X310 has locked to the external reference:
-
-\begin{lstlisting}[language=Matlab]
-referenceLockedStatus(radio)
-\end{lstlisting}
-
-A correct result is:
-
-\begin{lstlisting}
-ans =
-  logical
-   1
-\end{lstlisting}
-
-This confirms that the external 10~MHz source connected to \texttt{REF IN} is being used successfully.
-
-\section{MATLAB LO-lock validation issue with TwinRX}
-
-In this setup, MATLAB may report:
-
-\begin{lstlisting}
-Cannot detect LO locked sensor on this radio.
-\end{lstlisting}
-
-This can happen even when both TwinRX LOs are actually locked.
-
-The LO sensors can be located directly in the UHD RFNoC property tree with:
+Before streaming, \texttt{x310usrp\_record.py} waits for the reference clock and both channels' LOs to report locked, raising a clear error after a timeout rather than silently recording against an unlocked radio. The same sensors can also be queried directly, independent of the Python script, with:
 
 \begin{lstlisting}[language=bash]
 uhd_usrp_probe --args="addr=192.168.10.2" --tree | grep lo_locked
@@ -381,7 +432,7 @@ For this X310, the paths are (the exact path may vary with UHD version):
 /blocks/0/Radio#0/dboard/rx_frontends/1/sensors/lo_locked
 \end{lstlisting}
 
-Check channel 0:
+Check a given channel directly:
 
 \begin{lstlisting}[language=bash]
 uhd_usrp_probe \
@@ -389,75 +440,22 @@ uhd_usrp_probe \
   --sensor="/blocks/0/Radio#0/dboard/rx_frontends/0/sensors/lo_locked"
 \end{lstlisting}
 
-Check channel 1:
+For a healthy configuration, this returns \texttt{true} for both channels -- matching what \texttt{x310usrp\_record.py} itself reports as \texttt{ch0 lo\_locked: locked} / \texttt{ch1 lo\_locked: locked} on its own console output during a normal run.
 
-\begin{lstlisting}[language=bash]
-uhd_usrp_probe \
-  --args="addr=192.168.10.2" \
-  --sensor="/blocks/0/Radio#0/dboard/rx_frontends/1/sensors/lo_locked"
-\end{lstlisting}
+\section{RFNoC block-factory warnings}
 
-For a healthy configuration, both commands return:
-
-\begin{lstlisting}
-true
-\end{lstlisting}
-
-Therefore, when MATLAB reports that it cannot \emph{detect} the LO-lock sensor while UHD reports \texttt{true} for both channels, the problem is with MATLAB's sensor-enumeration path rather than the TwinRX PLLs themselves.
-
-\section{RFNoC warnings seen with the Wireless Testbench FPGA image}
-
-When probing the radio from the system UHD installation, warnings such as the following may appear:
+When probing or using the radio, warnings such as the following may appear:
 
 \begin{lstlisting}
 [WARNING] [RFNOC::BLOCK_FACTORY]
 Could not find block with Noc-ID ...
 \end{lstlisting}
 
-The radio can still enumerate normally, and standard blocks such as the DDCs, DUCs, radios, replay block, and TwinRX daughterboard can remain visible. In the present setup, these warnings have not prevented successful communication with the X310 or access to the TwinRX LO-lock sensors.
-
-\section{Minimal MATLAB capture: L1 on one channel and L5 on the other}
-
-The following script uses the saved X310 configuration and independently tunes the two TwinRX receive channels to GPS L1 and GPS L5.
-
-\begin{lstlisting}[language=Matlab]
-clear; clc;
-
-radio = radioConfigurations("My USRP X310 (TwinRX, None)");
-
-fL1 = 1575.42e6;
-fL5 = 1176.45e6;
-
-rx = basebandReceiver(radio, ...
-    Antennas=["RFA:TX/RX","RFA:RX2"], ...
-    CenterFrequency=[fL1 fL5], ...
-    SampleRate=2e6, ...
-    RadioGain=[1 1]);
-
-[data,~] = capture(rx,milliseconds(10));
-
-L1 = data(:,1);
-L5 = data(:,2);
-\end{lstlisting}
-
-The mapping is:
-
-\begin{center}
-\begin{tabular}{lll}
-\toprule
-TwinRX path & Frequency & MATLAB samples \\
-\midrule
-\texttt{RFA:TX/RX} & GPS L1, 1575.42~MHz & \texttt{data(:,1)} \\
-\texttt{RFA:RX2} & GPS L5, 1176.45~MHz & \texttt{data(:,2)} \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Because both LO sources are internal, the two channels can be tuned independently. Both internal synthesizers still benefit from the common external 10~MHz reference because \texttt{ClockSource = external}.
+These appear routinely during normal \texttt{x310usrp\_record.py} runs on this FPGA image and have not prevented successful communication with the X310, streaming, or access to the TwinRX lock sensors. The radio still enumerates normally, and standard blocks such as the DDCs, DUCs, radios, replay block, and TwinRX daughterboard remain visible.
 
 \section{Recommended final configuration}
 
-For the current L1/L5 dual-frequency use case:
+For the current L1/L5 dual-frequency GNSS recording setup:
 
 \begin{lstlisting}
 Host Ethernet IP:   192.168.10.1/24
@@ -472,8 +470,17 @@ LO Source RX1:      internal
 
 TwinRX RX0:         GPS L1 = 1575.42 MHz
 TwinRX RX1:         GPS L5 = 1176.45 MHz
+Sample rate:        2 MS/s
+Gain:               20 dB (tuned empirically, Section~\ref{sec:gain})
+Recording length:   300 s (5 min), up to twice per day, 16:00-18:00 local time
 \end{lstlisting}
 
-This configuration gives independent L1/L5 tuning while keeping both LO synthesizers referenced to the same precision external 10~MHz source.
+Equivalently, as the command this whole configuration reduces to when run manually:
+
+\begin{lstlisting}[language=bash]
+uv run x310usrp_record.py
+\end{lstlisting}
+
+since every value above is already \texttt{x310usrp\_record.py}'s own default. This configuration gives independent L1/L5 tuning while keeping both LO synthesizers referenced to the same precision external 10~MHz source, with unattended scheduling and reporting handled by the services in Sections~\ref{sec:record-service} and~\ref{sec:report-service}.
 
 \end{document}
