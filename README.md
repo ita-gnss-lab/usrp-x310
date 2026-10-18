@@ -7,7 +7,7 @@ See `instructions/` for more info
 
 ## Recording I/Q samples (Python + UHD)
 
-`x310usrp_record.py` streams the TwinRX channels straight to disk as [SigMF](https://sigmf.org) recordings. Defaults: GPS L1 on RX0, GPS L5 on RX1, 2 MS/s, external 10 MHz reference.
+`x310usrp_record.py` streams the TwinRX channels straight to disk as [SigMF](https://sigmf.org) recordings. Defaults: GPS L1 on RX0 at 5 MS/s, GPS L5 on RX1 at 20 MS/s, 25 dB gain on both, external 10 MHz reference.
 
 ### One-time setup
 
@@ -24,7 +24,7 @@ uv sync
 ```bash
 uv run x310usrp_record.py --duration 5                       # L1 + L5, 5 s
 uv run x310usrp_record.py --freq 1575.42e6 --channels 0      # L1 only
-uv run x310usrp_record.py --rate 5e6 --gain 10 --name test1  # see --help for all options
+uv run x310usrp_record.py --iq-rate 5e6 20e6 --gain 25 --name test1  # per-channel rates; see --help
 ```
 
 Output in `recordings/`, per channel:
@@ -32,7 +32,7 @@ Output in `recordings/`, per channel:
 - `<name>_ch<k>.sigmf-data`: interleaved int16 I/Q (`ci16_le`), 4 bytes per sample
 - `<name>_ch<k>.sigmf-meta`: JSON with sample rate, center frequency, gain, start time and any overflow gaps
 
-Over 1 GbE, keep `channels × rate` ≲ 25 MS/s (≈12.5 MS/s per channel when recording both). X310 rates are 200 MHz / integer, so the requested rate may be coerced. The script prints the actual value.
+Over 1 GbE, keep the sum of the channels' rates ≲ 25 MS/s (the default 5 + 20 MS/s is right at that limit; ~30 GB per 5-min recording). X310 rates are 200 MHz / integer, so the requested rate may be coerced. The script prints the actual value.
 
 ### Load
 

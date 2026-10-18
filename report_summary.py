@@ -119,8 +119,10 @@ def summarize(selected, cutoff, now):
     ]
 
     first_channels = selected[0]["channels"]
-    freqs = ", ".join(f"ch{ch}={meta['captures'][0]['core:frequency'] / 1e6:.3f} MHz" for ch, meta, _ in first_channels)
-    lines.append(f"channels: {freqs}")
+    lines.append("channels:")
+    for ch, meta, _ in first_channels:
+        lines.append(f"  ch{ch}: {meta['captures'][0]['core:frequency'] / 1e6:.3f} MHz, "
+                     f"{meta['global']['core:sample_rate'] / 1e6:.3f} MS/s, {meta['global']['x310:gain_db']:.1f} dB")
 
     lines.append("")
     lines.append("per-day breakdown:")
@@ -160,8 +162,6 @@ def session_subsubsection_tex(session, record_number):
     g0 = session["channels"][0][1]["global"]
     cap0 = session["channels"][0][1]["captures"][0]
     start_str = session["datetime"].strftime("%Y-%m-%d %H:%M:%S UTC")
-    rate = g0["core:sample_rate"]
-    bytes_per_sample = g0["core:bytes_per_sample"]
     sample_type = tex_escape(g0["core:sample_type_desc"])
 
     channel_cols = " & ".join(f"\\textbf{{Channel {ch}}}" for ch, _, _ in session["channels"])
@@ -174,7 +174,13 @@ def session_subsubsection_tex(session, record_number):
     lost_samp_row = " & ".join(str(meta["global"]["x310:lost_samples"]) for _, meta, _ in session["channels"])
     size_row = " & ".join(f"{size / 1e6:.1f} MB" for _, _, size in session["channels"])
     written_row = " & ".join(f"{meta['global']['x310:written_samples']:,}" for _, meta, _ in session["channels"])
-    duration = session["channels"][0][2] / bytes_per_sample / rate if rate else 0.0
+    # each channel has its own sample rate (e.g. L1 at 5 MS/s, L5 at 20 MS/s), so rate and
+    # duration are per channel too -- duration from each channel's own file size and rate
+    rate_row = " & ".join(f"{meta['global']['core:sample_rate'] / 1e6:.3f} MS/s" for _, meta, _ in session["channels"])
+    duration_row = " & ".join(
+        f"{size / meta['global']['core:bytes_per_sample'] / meta['global']['core:sample_rate']:.1f} s"
+        if meta["global"]["core:sample_rate"] else "0.0 s"
+        for _, meta, size in session["channels"])
 
     n_channels = len(session["channels"])
     span = f"\\multicolumn{{{n_channels}}}{{c|}}"  # centered across the channel columns
@@ -182,8 +188,8 @@ def session_subsubsection_tex(session, record_number):
 
     rows = [
         f"Start time & {span}{{{start_str}}} \\\\",
-        f"Duration & {span}{{{duration:.1f} s}} \\\\",
-        f"Sample rate & {span}{{{rate / 1e6:.3f} MS/s}} \\\\",
+        f"Duration & {duration_row} \\\\",
+        f"Sample rate & {rate_row} \\\\",
         f"Sample type & {span}{{{sample_type}}} \\\\",
         f"Frequency & {freq_row} \\\\",
         f"Gain & {gain_row} \\\\",

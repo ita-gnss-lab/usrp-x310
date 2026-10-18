@@ -6,7 +6,9 @@ little-endian) + <name>_ch<k>.sigmf-meta (JSON).
 
 import argparse
 import tarfile
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -19,8 +21,11 @@ SUBDEV = "A:0 A:1"  # TwinRX RX0 and RX1 on daughterboard slot A
 START_DELAY = 0.5  # s, lets both channels start on the same sample
 LOCK_TIMEOUT = 5.0  # s
 LINK_LIMIT = 100e6  # B/s, practical payload limit of 1 GbE
+RECV_CHUNK = 0.01  # s of samples per recv() call, so 20 MS/s isn't ~10k Python iterations/s
 GPS_L1_FREQ = 1575.42e6  # Hz
 GPS_L5_FREQ = 1176.45e6  # Hz
+# default I/Q rate per band: L5's ~20 MHz main lobe (10.23 Mcps) needs 20 MS/s, L1 C/A's ~2 MHz is fine at 5 MS/s
+DEFAULT_IQ_RATES = {GPS_L1_FREQ: 5e6, GPS_L5_FREQ: 20e6}  # Hz -> S/s
 SAMPLE_TYPE = "sc16"  # UHD OTW/CPU format: signed complex 16-bit samples (I+Q); matches SigMF's ci16_le
 SAMPLE_TYPE_DESC = "signed complex 16-bit samples (I+Q), little-endian"  # for the metadata
 BYTES_PER_SAMPLE = 4  # 16 bits I + 16 bits Q = 32 bits = 4 bytes
@@ -31,7 +36,7 @@ Noise floor in your 2 MHz bandwidth: kTB = -174 dBm/Hz + 10·log₁₀(2×10⁶)
 
 After your 20 dB LNA (ignoring its own noise figure, typically <1.5 dB for a decent GNSS LNA): noise floor at the USRP's input ≈ -91 dBm.
 '''
-DEFAULT_GAIN_DB = 20
+DEFAULT_GAIN_DB = 25
 
 
 def parse_args():
@@ -40,7 +45,9 @@ def parse_args():
     p.add_argument("--freq", type=float, nargs="+", default=[GPS_L1_FREQ, GPS_L5_FREQ],
                    help=f"center frequency per channel [Hz] (default: {GPS_L1_FREQ / 1e6:g}e6 "
                         f"{GPS_L5_FREQ / 1e6:g}e6, i.e. GPS L1 and L5)")
-    p.add_argument("--iq-rate", type=float, default=2e6, help="sample rate [S/s] at which the IQ samples are recorded (default: 2e6)")
+    p.add_argument("--iq-rate", type=float, nargs="+", default=None,
+                   help="sample rate [S/s] at which the IQ samples are recorded, one value or one per channel "
+                        f"(default: {DEFAULT_IQ_RATES[GPS_L1_FREQ]:g} for L1, {DEFAULT_IQ_RATES[GPS_L5_FREQ]:g} for L5)")
     p.add_argument("--gain", type=float, nargs="+", default=[DEFAULT_GAIN_DB],
                    help=f"gain [dB], one value or one per channel (default: {DEFAULT_GAIN_DB})")
     p.add_argument("--duration", type=float, default=300.0, help="recording length [s] (default: 300.0)")
@@ -61,10 +68,17 @@ def parse_args():
         args.freq *= n_channels
     if len(args.gain) == 1:
         args.gain *= n_channels
-    # check that freq/gain have the same number of values as channels
-    if len(args.freq) != n_channels or len(args.gain) != n_channels:
-        p.error("--freq and --gain need either one value or one value per channel")
-    
+    # no --iq-rate given: pick each channel's rate from the band it is tuned to
+    if args.iq_rate is None:
+        if any(f not in DEFAULT_IQ_RATES for f in args.freq):
+            p.error("--iq-rate is required when a channel is tuned to neither GPS L1 nor L5")
+        args.iq_rate = [DEFAULT_IQ_RATES[f] for f in args.freq]
+    if len(args.iq_rate) == 1:
+        args.iq_rate *= n_channels
+    # check that freq/gain/iq-rate have the same number of values as channels
+    if len(args.freq) != n_channels or len(args.gain) != n_channels or len(args.iq_rate) != n_channels:
+        p.error("--freq, --gain and --iq-rate need either one value or one value per channel")
+
     return args
 
 
@@ -77,8 +91,8 @@ def apply_settings(usrp, args):
     # one setting per channel
     settings = []
     # apply setting for each channel and record the values
-    for ch, freq, gain in zip(args.channels, args.freq, args.gain):
-        usrp.set_rx_rate(args.iq_rate, ch)
+    for ch, freq, gain, iq_rate in zip(args.channels, args.freq, args.gain, args.iq_rate):
+        usrp.set_rx_rate(iq_rate, ch)
         usrp.set_rx_freq(uhd.types.TuneRequest(freq), ch)
         usrp.set_rx_gain(gain, ch)
         rate_ch = usrp.get_rx_rate(ch)
@@ -94,14 +108,14 @@ def apply_settings(usrp, args):
             "bytes_per_sample": BYTES_PER_SAMPLE,
             "throughput_B/s": rate_ch * BYTES_PER_SAMPLE,  # B/s, this channel alone
         })
+        if abs(rate_ch - iq_rate) > 1e-3:
+            print(f"note: ch{ch} requested rate {iq_rate / 1e6} MS/s coerced to {rate_ch / 1e6} MS/s")
 
     # confirmation of what the USRP actually ended up configured at, for each channel (only useful for interactive runnings)
     for s in settings:
         print(f"ch{s['channel']} ({s['frontend']}, {s['antenna']}): "
               f"freq={s['freq'] / 1e6:.6f} MHz  rate={s['iq_samp_rate'] / 1e6:.6f} MS/s  "
               f"gain={s['gain']:.1f} dB  type={s['sample_type']}  throughput={s['throughput_B/s'] / 1e6:.1f} MB/s")
-    if abs(settings[0]["iq_samp_rate"] - args.iq_rate) > 1e-3:
-        print(f"note: requested rate {args.iq_rate / 1e6} MS/s coerced to {settings[0]['iq_samp_rate'] / 1e6} MS/s")
 
     total_throughput = sum(s["throughput_B/s"] for s in settings)  # B/s, all channels over the one link
     if total_throughput > LINK_LIMIT:
@@ -156,21 +170,73 @@ def wait_for_locks(usrp, args):
             time.sleep(0.2)
         print("pps: detected")
 
-def record(usrp, args, iq_samp_rate, paths):
-    """Stream all channels to their .sigmf-data files. Returns (samples written, gap annotations, start time)."""
-    stream_args = uhd.usrp.StreamArgs(SAMPLE_TYPE, SAMPLE_TYPE)
-    stream_args.channels = args.channels
-    # create a streaming handle session to the USRP that stays open indefinitely until you explicitly tell it to stop
-    streamer = usrp.get_rx_stream(stream_args)
-
+def record_channel(streamer, iq_samp_rate, duration, path, stop):
+    """Stream one channel to its .sigmf-data file until `duration` is reached or `stop` is set.
+    Returns (samples written, lost-sample gaps as (sample index, count) pairs)."""
     # init a blank empty metadata container
     md = uhd.types.RXMetadata()
 
-    # total number of I/Q samples (per channel) the recording should stop at — the stopping condition for the receive loop.
-    total_iq_samp_per_chan = round(args.duration * iq_samp_rate)
+    # total number of I/Q samples the recording should stop at — the stopping condition for the receive loop.
+    total_iq_samps = round(duration * iq_samp_rate)
     n_written_iq_samps = 0
     # number of samples that were lost
     lost_samps = []
+
+    # the timout handed to streamer.recv() is the maximum time to wait for a packet of samples to arrive.
+    timeout = START_DELAY + 1.0
+
+    # Upper bound on how many samples a single packet carries, determined by the transport's packet size (for the X310 over Ethernet, that's bounded by the UDP/Ethernet MTU divided by the sample size). recv() fills the buffer across several packets, so the buffer holds RECV_CHUNK seconds instead, keeping the Python loop rate low at high sample rates
+    n_buf_samps = max(streamer.get_max_num_samps(), round(RECV_CHUNK * iq_samp_rate))
+    # create an empty buffer array to hold the received samples (one row: this streamer's only channel)
+    buf = np.empty((1, n_buf_samps), dtype=np.uint32)
+    with open(path, "wb") as f:
+        try:
+            while n_written_iq_samps < total_iq_samps and not stop.is_set():
+                # Pulls one batch of received I/Q samples from the USRP into buf, waiting up to timeout seconds if none have arrived yet, and returns how many samples it actually got this call (n_iq_samp_this_call).
+                n_iq_samp_this_call = streamer.recv(buf, md, timeout)
+                timeout = 0.5
+                # check error (if any)
+                err = md.error_code
+                if err == uhd.types.RXMetadataErrorCode.overflow:
+                    continue
+                if err != uhd.types.RXMetadataErrorCode.none:
+                    raise RuntimeError(f"receive error: {md.strerror()}")
+                if n_iq_samp_this_call == 0:
+                    continue
+
+                # did this particular recv() result come with a timestamp attached?
+                if md.has_time_spec:
+                    n_expected_iq_samps = round((md.time_spec.get_real_secs() - START_DELAY) * iq_samp_rate)
+                    # if we have lost samples, record them
+                    if n_expected_iq_samps > n_written_iq_samps:
+                        lost_samps.append((n_written_iq_samps, n_expected_iq_samps - n_written_iq_samps))
+                        print(f"{path.name}: overflow: {n_expected_iq_samps - n_written_iq_samps} samples lost "
+                              f"at sample {n_written_iq_samps}")
+
+                n_iq_samp_to_write = min(n_iq_samp_this_call, total_iq_samps - n_written_iq_samps)
+                buf[0, :n_iq_samp_to_write].tofile(f)
+                n_written_iq_samps += n_iq_samp_to_write
+        finally:
+            streamer.issue_stream_cmd(uhd.types.StreamCMD(uhd.types.StreamMode.stop_cont))
+            while streamer.recv(buf, md, 0.1):  # drain what is still in flight
+                pass
+    return n_written_iq_samps, lost_samps
+
+
+def record(usrp, args, settings, paths):
+    """Stream all channels to their .sigmf-data files. Returns ([(samples written, gap annotations)]
+    per channel, start time).
+
+    Each channel gets its own streamer, received in its own thread: a single multi-channel
+    streamer hands back the same number of samples per channel per recv(), so it can't carry
+    channels running at different sample rates (e.g. L1 at 5 MS/s and L5 at 20 MS/s). All
+    streamers are started by the same timed command, so they still begin on the same instant."""
+    streamers = []
+    for s in settings:
+        stream_args = uhd.usrp.StreamArgs(SAMPLE_TYPE, SAMPLE_TYPE)
+        stream_args.channels = [s["channel"]]
+        # create a streaming handle session to the USRP that stays open indefinitely until you explicitly tell it to stop
+        streamers.append(usrp.get_rx_stream(stream_args))
 
     # resets the USRP's own internal hardware time register to zero
     usrp.set_time_now(uhd.types.TimeSpec(0.0))
@@ -180,53 +246,27 @@ def record(usrp, args, iq_samp_rate, paths):
     # "start streaming when my internal clock reaches 0.5s." Zeroing the device clock first, in usrp.set_time_now(uhd.types.TimeSpec(0.0)), is what makes "0.5s" a well-defined instant to schedule against
     cmd.time_spec = uhd.types.TimeSpec(START_DELAY)
     #  issue_stream_cmd(cmd) is non-blocking: it just hands this command to the device and returns immediately. The actual triggering — "now begin streaming samples" — happens autonomously inside the USRP's own firmware/FPGA, which watches its internal clock (zeroed lines ago) and starts emitting samples the instant that clock crosses 0.5s, with no further involvement from the host/Python side.
-    streamer.issue_stream_cmd(cmd)
+    for streamer in streamers:
+        streamer.issue_stream_cmd(cmd)
     # save the UTC timestamp of when the recording started just for the record, to be used outside this function
     start_utc = datetime.now(timezone.utc) + timedelta(seconds=START_DELAY)
 
-    files = [open(p, "wb") for p in paths]
-    # the timout handed to streamer.recv() is the maximum time to wait for a packet of samples to arrive.
-    timeout = START_DELAY + 1.0
+    # set by the main thread (Ctrl+C) or when any channel fails, so every channel stops together
+    stop = threading.Event()
+    with ThreadPoolExecutor(max_workers=len(streamers)) as pool:
+        futures = [pool.submit(record_channel, streamer, s["iq_samp_rate"], args.duration, path, stop)
+                   for streamer, s, path in zip(streamers, settings, paths)]
+        try:
+            # poll instead of blocking on result(), so Ctrl+C reaches the main thread
+            while not all(f.done() for f in futures):
+                if any(f.done() and f.exception() for f in futures):
+                    stop.set()
+                time.sleep(0.2)
+        except KeyboardInterrupt:
+            print("interrupted, finalizing files")
+            stop.set()
+    return [f.result() for f in futures], start_utc
 
-    # Upper bound on how many samples (per channel) a single recv() call can hand back, determined by the transport's packet size (for the X310 over Ethernet, that's bounded by the UDP/Ethernet MTU divided by the sample size)
-    max_samples_per_packet = streamer.get_max_num_samps()
-    # create an empty buffer array to hold the received samples
-    buf = np.empty((len(args.channels), max_samples_per_packet), dtype=np.uint32)
-    try:
-        while n_written_iq_samps < total_iq_samp_per_chan:
-            # Pulls one batch of received I/Q samples from the USRP into buf, waiting up to timeout seconds if none have arrived yet, and returns how many samples it actually got this call (n_iq_samp_this_call).
-            n_iq_samp_this_call = streamer.recv(buf, md, timeout)
-            timeout = 0.5
-            # check error (if any)
-            err = md.error_code
-            if err == uhd.types.RXMetadataErrorCode.overflow:
-                continue
-            if err != uhd.types.RXMetadataErrorCode.none:
-                raise RuntimeError(f"receive error: {md.strerror()}")
-            if n_iq_samp_this_call == 0:
-                continue
-
-            # did this particular recv() result come with a timestamp attached?
-            if md.has_time_spec:
-                n_expected_iq_samps = round((md.time_spec.get_real_secs() - START_DELAY) * iq_samp_rate)
-                # if we have lost samples, record them
-                if n_expected_iq_samps > n_written_iq_samps:
-                    lost_samps.append((n_written_iq_samps, n_expected_iq_samps - n_written_iq_samps))
-                    print(f"overflow: {n_expected_iq_samps - n_written_iq_samps} samples lost at sample {n_written_iq_samps}")
-
-            n_iq_samp_to_write = min(n_iq_samp_this_call, total_iq_samp_per_chan - n_written_iq_samps)
-            for f, row in zip(files, buf):
-                row[:n_iq_samp_to_write].tofile(f)
-            n_written_iq_samps += n_iq_samp_to_write
-    except KeyboardInterrupt:
-        print("interrupted, finalizing files")
-    finally:
-        streamer.issue_stream_cmd(uhd.types.StreamCMD(uhd.types.StreamMode.stop_cont))
-        while streamer.recv(buf, md, 0.1):  # drain what is still in flight
-            pass
-        for f in files:
-            f.close()
-    return n_written_iq_samps, lost_samps, start_utc
 
 def write_meta(path, data_path, s, args, start_utc, lost_samps, n_written_iq_samps):
     """Build this channel's metadata dict and write it as a SigMF Recording's .sigmf-meta
@@ -311,8 +351,6 @@ def main():
     # Wait for the USRP to lock its reference clock (external 10 MHz) and the local oscillators (LOs) for each channel
     wait_for_locks(usrp, args)
 
-    iq_samp_rate = settings[0]["iq_samp_rate"]
-
     print(f"recording {args.duration} s ...")
     
     # one .sigmf-data path per channel 
@@ -321,16 +359,16 @@ def main():
     data_paths = [b.parent / f"{b.name}.sigmf-data" for b in basenames]
     
     # start the record
-    n_written_iq_samps, lost_samps, start_utc = record(usrp, args, iq_samp_rate, data_paths)
+    results, start_utc = record(usrp, args, settings, data_paths)
 
     # for each channel, write the metadata file and print a summary of what was recorded
     meta_paths = []
-    for setting, basename, data_path in zip(settings, basenames, data_paths):
+    for setting, basename, data_path, (n_written_iq_samps, lost_samps) in zip(settings, basenames, data_paths, results):
         meta_path = basename.parent / f"{basename.name}.sigmf-meta"
         write_meta(meta_path, data_path, setting, args, start_utc, lost_samps, n_written_iq_samps)
         meta_paths.append(meta_path)
-        print(f"{data_path}: {n_written_iq_samps} samples ({data_path.stat().st_size / 1e6:.1f} MB)")
-    print(f"overflows: {len(lost_samps)} ({sum(n for _, n in lost_samps)} samples lost)")
+        print(f"{data_path}: {n_written_iq_samps} samples ({data_path.stat().st_size / 1e6:.1f} MB), "
+              f"overflows: {len(lost_samps)} ({sum(n for _, n in lost_samps)} samples lost)")
 
     # bundle every channel's Recording into one SigMF Archive (Archive > Collection > Recordings)
     archive_path = build_archive(name, args.out_dir, meta_paths)
