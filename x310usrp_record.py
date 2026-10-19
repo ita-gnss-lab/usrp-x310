@@ -1,7 +1,6 @@
 """Record I/Q samples from the USRP X310 + TwinRX to SigMF files.
 
-One recording per channel: <name>_ch<k>.sigmf-data (interleaved int16 I/Q,
-little-endian) + <name>_ch<k>.sigmf-meta (JSON).
+One recording per channel: <name>_ch<k>.sigmf-data (interleaved int8 I/Q) + <name>_ch<k>.sigmf-meta (JSON).
 """
 
 import argparse
@@ -24,11 +23,14 @@ LINK_LIMIT = 100e6  # B/s, practical payload limit of 1 GbE
 RECV_CHUNK = 0.01  # s of samples per recv() call, so 20 MS/s isn't ~10k Python iterations/s
 GPS_L1_FREQ = 1575.42e6  # Hz
 GPS_L5_FREQ = 1176.45e6  # Hz
-# default I/Q rate per band: L5's ~20 MHz main lobe (10.23 Mcps) needs 20 MS/s, L1 C/A's ~2 MHz is fine at 5 MS/s
-DEFAULT_IQ_RATES = {GPS_L1_FREQ: 5e6, GPS_L5_FREQ: 20e6}  # Hz -> S/s
-SAMPLE_TYPE = "sc16"  # UHD OTW/CPU format: signed complex 16-bit samples (I+Q); matches SigMF's ci16_le
-SAMPLE_TYPE_DESC = "signed complex 16-bit samples (I+Q), little-endian"  # for the metadata
-BYTES_PER_SAMPLE = 4  # 16 bits I + 16 bits Q = 32 bits = 4 bytes
+# default I/Q rate per band: L5's ~20 MHz main lobe (10.23 Mcps) needs 20 MS/s, L1 C/A's ~2 MHz is fine at 4 MS/s
+DEFAULT_IQ_RATES = {GPS_L1_FREQ: 4e6, GPS_L5_FREQ: 20e6}  # Hz -> S/s
+# UHD OTW/CPU format: signed complex 8-bit samples (I+Q). sc8 on the wire too (the X310 FPGA does the
+# 16 -> 8 bit conversion), which halves the 1 GbE load; UHD has no sc16-OTW -> sc8-CPU converter anyway
+SAMPLE_TYPE = "sc8"
+SIGMF_DATATYPE = "ci8"  # SigMF's name for the same format (no endianness for 1-byte values)
+SAMPLE_TYPE_DESC = "signed complex 8-bit samples (I+Q)"  # for the metadata
+BYTES_PER_SAMPLE = 2  # 8 bits I + 8 bits Q = 16 bits = 2 bytes
 '''
 GPS L1 at the antenna is roughly -130 dBm. But at this power level the signal itself is irrelevant to gain-setting — it's 15-20 dB below the thermal noise floor regardless, so GNSS gain-setting is really about placing the noise floor correctly in the ADC's dynamic range, not the signal.
 
@@ -172,7 +174,9 @@ def wait_for_locks(usrp, args):
 
 def record_channel(streamer, iq_samp_rate, duration, path, stop):
     """Stream one channel to its .sigmf-data file until `duration` is reached or `stop` is set.
-    Returns (samples written, lost-sample gaps as (sample index, count) pairs)."""
+    Samples lost to an overflow are replaced by zeros, so a sample's position in the file always
+    matches its time (and both channels stay aligned). Returns (samples written, zeros included;
+    lost-sample gaps as (sample index, count) pairs)."""
     # init a blank empty metadata container
     md = uhd.types.RXMetadata()
 
@@ -188,7 +192,9 @@ def record_channel(streamer, iq_samp_rate, duration, path, stop):
     # Upper bound on how many samples a single packet carries, determined by the transport's packet size (for the X310 over Ethernet, that's bounded by the UDP/Ethernet MTU divided by the sample size). recv() fills the buffer across several packets, so the buffer holds RECV_CHUNK seconds instead, keeping the Python loop rate low at high sample rates
     n_buf_samps = max(streamer.get_max_num_samps(), round(RECV_CHUNK * iq_samp_rate))
     # create an empty buffer array to hold the received samples (one row: this streamer's only channel)
-    buf = np.empty((1, n_buf_samps), dtype=np.uint32)
+    # (np.uint16 = one 2-byte I/Q pair per element, written to disk as-is)
+    buf = np.empty((1, n_buf_samps), dtype=np.uint16)
+    zeros = np.zeros(n_buf_samps, dtype=np.uint16)  # written in place of lost samples
     with open(path, "wb") as f:
         try:
             while n_written_iq_samps < total_iq_samps and not stop.is_set():
@@ -204,14 +210,29 @@ def record_channel(streamer, iq_samp_rate, duration, path, stop):
                 if n_iq_samp_this_call == 0:
                     continue
 
-                # did this particular recv() result come with a timestamp attached?
+                # Lost-sample check: does this batch continue the file directly, or is there a hole in between?
+                # It compares the time right after the file's last sample with the time of the batch's first
+                # sample, both expressed as sample indices (time x rate):
+                #   - n_written_iq_samps: samples in the file so far = index where the next sample should go
+                #   - n_expected_iq_samps: index where this batch's first sample belongs, from its USRP timestamp
+                # Equal -> no loss. Batch ahead of the file -> the samples in between were dropped (overflow).
+                # E.g. at 5 MS/s, the file holds 49,200,000 samples (it ends at t = 9.84 s) but the batch is
+                # stamped t = 10.00 s (index 50,000,000): 800,000 samples (0.16 s) are missing.
                 if md.has_time_spec:
-                    n_expected_iq_samps = round((md.time_spec.get_real_secs() - START_DELAY) * iq_samp_rate)
-                    # if we have lost samples, record them
-                    if n_expected_iq_samps > n_written_iq_samps:
-                        lost_samps.append((n_written_iq_samps, n_expected_iq_samps - n_written_iq_samps))
-                        print(f"{path.name}: overflow: {n_expected_iq_samps - n_written_iq_samps} samples lost "
-                              f"at sample {n_written_iq_samps}")
+                    # index (from the start of the recording) of this batch's first sample, per the USRP's clock
+                    n_expected_iq_samps = min(round((md.time_spec.get_real_secs() - START_DELAY) * iq_samp_rate),
+                                              total_iq_samps)
+                    # Fill the hole with zeros, so the batch lands at the index matching its timestamp (keeping
+                    # file position = time, and both channels aligned). This also makes n_written_iq_samps catch
+                    # up with n_expected_iq_samps, so this gap is counted only once, not again on every later read
+                    n_lost = n_expected_iq_samps - n_written_iq_samps
+                    if n_lost > 0:
+                        lost_samps.append((n_written_iq_samps, n_lost))
+                        print(f"{path.name}: overflow: {n_lost} samples lost at sample {n_written_iq_samps}, "
+                              f"zero-filled")
+                        for start in range(0, n_lost, n_buf_samps):
+                            zeros[:min(n_buf_samps, n_lost - start)].tofile(f)
+                        n_written_iq_samps += n_lost
 
                 n_iq_samp_to_write = min(n_iq_samp_this_call, total_iq_samps - n_written_iq_samps)
                 buf[0, :n_iq_samp_to_write].tofile(f)
@@ -229,7 +250,7 @@ def record(usrp, args, settings, paths):
 
     Each channel gets its own streamer, received in its own thread: a single multi-channel
     streamer hands back the same number of samples per channel per recv(), so it can't carry
-    channels running at different sample rates (e.g. L1 at 5 MS/s and L5 at 20 MS/s). All
+    channels running at different sample rates (e.g. L1 at 4 MS/s and L5 at 20 MS/s). All
     streamers are started by the same timed command, so they still begin on the same instant."""
     streamers = []
     for s in settings:
@@ -274,7 +295,7 @@ def write_meta(path, data_path, s, args, start_utc, lost_samps, n_written_iq_sam
     before being written, instead of just assumed correct."""
     meta = {
         "global": {
-            "core:datatype": "ci16_le",
+            "core:datatype": SIGMF_DATATYPE,
             "core:sample_rate": s["iq_samp_rate"],
             "core:sample_type": s["sample_type"],
             "core:sample_type_desc": s["sample_type_desc"],
@@ -300,8 +321,8 @@ def write_meta(path, data_path, s, args, start_utc, lost_samps, n_written_iq_sam
             "core:datetime": start_utc.isoformat(timespec="microseconds").replace("+00:00", "Z"),
         }],
         "annotations": [
-            {"core:sample_start": start, "core:sample_count": 0,
-             "core:comment": "overflow", "x310:lost_samples": lost}
+            {"core:sample_start": start, "core:sample_count": lost,
+             "core:comment": "overflow: lost samples, zero-filled", "x310:lost_samples": lost}
             for start, lost in lost_samps
         ],
     }

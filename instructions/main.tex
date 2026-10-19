@@ -214,17 +214,17 @@ uv sync
 \begin{lstlisting}[language=bash]
 uv run x310usrp_record.py --duration 5                        # L1 + L5, 5 s
 uv run x310usrp_record.py --freq 1575.42e6 --channels 0       # L1 only
-uv run x310usrp_record.py --iq-rate 5e6 20e6 --gain 25 30 --name test1  # per channel
+uv run x310usrp_record.py --iq-rate 4e6 20e6 --gain 25 30 --name test1  # per channel
 uv run x310usrp_record.py --help                               # all options, with defaults
 \end{lstlisting}
 
-The defaults reproduce the dual-frequency GNSS setup used in this lab: GPS L1 (1575.42~MHz) on RX0 at 5~MS/s and GPS L5 (1176.45~MHz) on RX1 at 20~MS/s, with the external 10~MHz clock reference and 25~dB of RX gain on both channels (see Section~\ref{sec:gain}). \texttt{--freq}, \texttt{--gain} and \texttt{--iq-rate} each take either one value (applied to every channel) or one value per channel; when \texttt{--iq-rate} is omitted, each channel's rate is chosen from the band it is tuned to (5~MS/s for L1, whose C/A main lobe is about 2~MHz wide, and 20~MS/s for L5, whose 10.23~Mchip/s main lobe is about 20~MHz wide).
+The defaults reproduce the dual-frequency GNSS setup used in this lab: GPS L1 (1575.42~MHz) on RX0 at 4~MS/s and GPS L5 (1176.45~MHz) on RX1 at 20~MS/s, with the external 10~MHz clock reference and 25~dB of RX gain on both channels (see Section~\ref{sec:gain}). \texttt{--freq}, \texttt{--gain} and \texttt{--iq-rate} each take either one value (applied to every channel) or one value per channel; when \texttt{--iq-rate} is omitted, each channel's rate is chosen from the band it is tuned to (4~MS/s for L1, whose C/A main lobe is about 2~MHz wide, and 20~MS/s for L5, whose 10.23~Mchip/s main lobe is about 20~MHz wide).
 
 Because the two channels run at different sample rates, each channel is received through its own UHD streamer, in its own thread, and written to its own \texttt{.sigmf-data} file. Both streamers are started by the same timed stream command, so the two recordings still begin at the same instant on the USRP's clock. Every per-channel quantity -- sample rate, gain, frequency, written and lost samples -- is stored in that channel's own \texttt{.sigmf-meta} and reported per channel.
 
 \subsection{SigMF Archive output}
 
-Each run produces a single file, \texttt{recordings/<name>.sigmf}, following the SigMF specification's Archive~$\rightarrow$~Collection~$\rightarrow$~Recording structure: the \texttt{.sigmf} file is a plain tar archive containing one \texttt{.sigmf-collection} JSON file (linking the two channels' recordings by name and SHA-512 hash) and, for each channel, one \texttt{.sigmf-meta} (JSON metadata: that channel's sample rate, frequency, gain, antenna, motherboard/daughterboard, start time, lost/written sample counts) and one \texttt{.sigmf-data} file (interleaved \texttt{int16} I/Q, little-endian). Listing one archive's contents:
+Each run produces a single file, \texttt{recordings/<name>.sigmf}, following the SigMF specification's Archive~$\rightarrow$~Collection~$\rightarrow$~Recording structure: the \texttt{.sigmf} file is a plain tar archive containing one \texttt{.sigmf-collection} JSON file (linking the two channels' recordings by name and SHA-512 hash) and, for each channel, one \texttt{.sigmf-meta} (JSON metadata: that channel's sample rate, frequency, gain, antenna, motherboard/daughterboard, start time, lost/written sample counts) and one \texttt{.sigmf-data} file (interleaved \texttt{int8} I/Q, SigMF datatype \texttt{ci8}: 1 byte for I and 1 byte for Q, 2 bytes per complex sample). Listing one archive's contents:
 
 \begin{lstlisting}[language=bash]
 tar -tvf recordings/x310_20261009T160000Z.sigmf
@@ -238,9 +238,9 @@ x310_20261009T160000Z/x310_20261009T160000Z_ch0.sigmf-data
 x310_20261009T160000Z/x310_20261009T160000Z_ch1.sigmf-data
 \end{lstlisting}
 
-Over 1~GbE, keep the sum of the channels' rates $\lesssim$ 25~MS/s (100~MB/s of \texttt{sc16} samples). The default 5 + 20~MS/s sits right at that limit, so any overflow is logged on the console and recorded as lost samples in the affected channel's metadata. X310 rates are 200~MHz divided by an integer (5 and 20~MS/s are exact: 200/40 and 200/10), so other requested rates may be coerced; the script prints the actual value used per channel.
+Samples are carried as \texttt{sc8} both over the Ethernet link and on disk: the X310's FPGA converts the radio's 16-bit samples to 8 bits before sending them, so the default 4 + 20~MS/s costs 2~bytes~$\times$~24~MS/s = 48~MB/s, about half of the roughly 100~MB/s a 1~GbE link can carry (with 16-bit samples the same configuration would sit right at that limit). If the host falls behind anyway (an overflow), the lost samples are replaced by zeros, so a sample's position in the file always matches its time and the two channels stay aligned; each gap is logged on the console and recorded in that channel's \texttt{.sigmf-meta} as an annotation covering the zero-filled samples, and in its \texttt{x310:lost\_samples} total. Recordings made before 19/10/2026 skipped lost samples instead of zero-filling them, and over-counted \texttt{x310:lost\_samples}. X310 rates are 200~MHz divided by an integer (4 and 20~MS/s are exact: 200/50 and 200/10), so other requested rates may be coerced; the script prints the actual value used per channel.
 
-At these rates a 300~s recording takes about 6~GB for L1 and 24~GB for L5, i.e.\ about 30~GB per recording and 60~GB per day.
+At these rates a 300~s recording takes about 2.4~GB for L1 and 12~GB for L5, i.e.\ about 14.4~GB per recording and 29~GB per day.
 
 \subsection{Loading the recorded samples in Python}
 
@@ -254,7 +254,7 @@ with tarfile.open("recordings/x310_20261009T160000Z.sigmf") as tar:
     member = next(m for m in tar.getmembers() if m.name.endswith("_ch0.sigmf-data"))
     raw = tar.extractfile(member).read()
 
-L1 = np.frombuffer(raw, dtype=np.int16).astype(np.float32).view(np.complex64)
+L1 = np.frombuffer(raw, dtype=np.int8).astype(np.float32).view(np.complex64)
 \end{lstlisting}
 
 Replace \texttt{\_ch0} with \texttt{\_ch1} for the GPS~L5 channel. The two channels have different sample rates (and hence different numbers of samples for the same duration), so always read each channel's rate from its own \texttt{.sigmf-meta} (\texttt{core:sample\_rate}) rather than assuming a common one.
@@ -271,7 +271,7 @@ uv run x310usrp_record.py --duration 10 --gain 20 25   # one gain per channel
 uv run check_levels.py recordings/x310_<timestamp>.sigmf
 \end{lstlisting}
 
-It prints each channel's I/Q standard deviation against a target band (1/16 to 1/3 of \texttt{int16} full-scale, i.e.\ 32768) and the percentage of clipped samples, with a one-line verdict (raise/lower \texttt{--gain}, or OK). With a 20~dB external active LNA already in this lab's RF chain ahead of the USRP, the TwinRX gain is set to \textbf{25~dB} on both channels. Since the L5 channel's 20~MS/s bandwidth lets in about 6~dB more noise power than the L1 channel's 5~MS/s, the two channels sit at different levels for the same gain, so \texttt{check\_levels.py} should be read per channel; if one channel falls outside the target band, give it its own value via \texttt{--gain <ch0> <ch1>}. Re-run the check if the antenna, cable, or LNA changes.
+It prints each channel's I/Q standard deviation against a target band (1/16 to 1/3 of full-scale: 128 for the current \texttt{int8} samples, i.e.\ 8 to 42; 32768 for older \texttt{int16} recordings) and the percentage of clipped samples, with a one-line verdict (raise/lower \texttt{--gain}, or OK). With a 20~dB external active LNA already in this lab's RF chain ahead of the USRP, the TwinRX gain is set to \textbf{25~dB} on both channels. Since the L5 channel's 20~MS/s bandwidth lets in about 7~dB more noise power than the L1 channel's 4~MS/s, the two channels sit at different levels for the same gain, so \texttt{check\_levels.py} should be read per channel. This matters more with 8-bit samples, which have only $\pm$127 of headroom: clipping shows up much sooner than with 16 bits; if one channel falls outside the target band, give it its own value via \texttt{--gain <ch0> <ch1>}. Re-run the check if the antenna, cable, or LNA changes.
 
 \section{Automating recordings with systemd}
 \label{sec:record-service}
@@ -474,9 +474,10 @@ LO Source RX1:      internal
 
 TwinRX RX0:         GPS L1 = 1575.42 MHz
 TwinRX RX1:         GPS L5 = 1176.45 MHz
-Sample rate RX0:    5 MS/s  (L1)
+Sample rate RX0:    4 MS/s  (L1)
 Sample rate RX1:    20 MS/s (L5)
 Gain RX0/RX1:       25 dB / 25 dB (Section~\ref{sec:gain})
+Sample type:        sc8 / ci8 (int8 I + int8 Q = 2 bytes per sample)
 Recording length:   300 s (5 min), up to twice per day, 16:00-18:00 local time
 \end{lstlisting}
 

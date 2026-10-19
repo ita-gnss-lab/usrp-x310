@@ -174,7 +174,7 @@ def session_subsubsection_tex(session, record_number):
     lost_samp_row = " & ".join(str(meta["global"]["x310:lost_samples"]) for _, meta, _ in session["channels"])
     size_row = " & ".join(f"{size / 1e6:.1f} MB" for _, _, size in session["channels"])
     written_row = " & ".join(f"{meta['global']['x310:written_samples']:,}" for _, meta, _ in session["channels"])
-    # each channel has its own sample rate (e.g. L1 at 5 MS/s, L5 at 20 MS/s), so rate and
+    # each channel has its own sample rate (e.g. L1 at 4 MS/s, L5 at 20 MS/s), so rate and
     # duration are per channel too -- duration from each channel's own file size and rate
     rate_row = " & ".join(f"{meta['global']['core:sample_rate'] / 1e6:.3f} MS/s" for _, meta, _ in session["channels"])
     duration_row = " & ".join(
