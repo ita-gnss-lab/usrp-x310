@@ -1,6 +1,7 @@
 """Record I/Q samples from the USRP X310 + TwinRX to SigMF files.
 
-One recording per channel: <name>_ch<k>.sigmf-data (interleaved int8 I/Q) + <name>_ch<k>.sigmf-meta (JSON).
+One recording per channel: <name>_ch<k>.sigmf-data (interleaved int16 I/Q, little-endian)
++ <name>_ch<k>.sigmf-meta (JSON).
 """
 
 import argparse
@@ -13,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 import uhd
+from loguru import logger
 from sigmf import SigMFCollection, SigMFFile
 
 SUBDEV = "A:0 A:1"  # TwinRX RX0 and RX1 on daughterboard slot A
@@ -25,12 +27,17 @@ GPS_L1_FREQ = 1575.42e6  # Hz
 GPS_L5_FREQ = 1176.45e6  # Hz
 # default I/Q rate per band: L5's ~20 MHz main lobe (10.23 Mcps) needs 20 MS/s, L1 C/A's ~2 MHz is fine at 4 MS/s
 DEFAULT_IQ_RATES = {GPS_L1_FREQ: 4e6, GPS_L5_FREQ: 20e6}  # Hz -> S/s
-# UHD OTW/CPU format: signed complex 8-bit samples (I+Q). sc8 on the wire too (the X310 FPGA does the
-# 16 -> 8 bit conversion), which halves the 1 GbE load; UHD has no sc16-OTW -> sc8-CPU converter anyway
-SAMPLE_TYPE = "sc8"
-SIGMF_DATATYPE = "ci8"  # SigMF's name for the same format (no endianness for 1-byte values)
-SAMPLE_TYPE_DESC = "signed complex 8-bit samples (I+Q)"  # for the metadata
-BYTES_PER_SAMPLE = 2  # 8 bits I + 8 bits Q = 16 bits = 2 bytes
+# OTW (over-the-wire) format: how samples travel from the USRP to the host. The X310 only supports sc16;
+# asking UHD for another (e.g. sc8) is accepted silently, but the X310 still sends sc16 and UHD then
+# misreads every 16-bit value as an 8-bit I/Q pair (that is what broke the 19-20/10/2026 recordings)
+OTW_FORMAT = "sc16"
+X310_OTW_FORMATS = {"sc16"}  # the only OTW format the X310 actually sends; checked at startup
+# CPU format: what recv() writes into our buffer. sc16 = the OTW samples unchanged (no float conversion);
+# UHD 4.6 has no sc16-OTW -> sc8-CPU converter, so 8-bit files would have to be converted in this script
+CPU_FORMAT = "sc16"
+SIGMF_DATATYPE = "ci16_le"  # SigMF's name for the CPU format as written to disk
+SAMPLE_TYPE_DESC = "signed complex 16-bit samples (I+Q), little-endian"  # for the metadata
+BYTES_PER_SAMPLE = 4  # 16 bits I + 16 bits Q = 32 bits = 4 bytes
 '''
 GPS L1 at the antenna is roughly -130 dBm. But at this power level the signal itself is irrelevant to gain-setting — it's 15-20 dB below the thermal noise floor regardless, so GNSS gain-setting is really about placing the noise floor correctly in the ADC's dynamic range, not the signal.
 
@@ -105,23 +112,24 @@ def apply_settings(usrp, args):
             "gain": usrp.get_rx_gain(ch),
             "antenna": usrp.get_rx_antenna(ch),
             "frontend": usrp.get_rx_subdev_name(ch),
-            "sample_type": SAMPLE_TYPE,
+            "otw_format": OTW_FORMAT,
+            "cpu_format": CPU_FORMAT,
             "sample_type_desc": SAMPLE_TYPE_DESC,
             "bytes_per_sample": BYTES_PER_SAMPLE,
             "throughput_B/s": rate_ch * BYTES_PER_SAMPLE,  # B/s, this channel alone
         })
         if abs(rate_ch - iq_rate) > 1e-3:
-            print(f"note: ch{ch} requested rate {iq_rate / 1e6} MS/s coerced to {rate_ch / 1e6} MS/s")
+            logger.warning(f"ch{ch} requested rate {iq_rate / 1e6} MS/s coerced to {rate_ch / 1e6} MS/s")
 
     # confirmation of what the USRP actually ended up configured at, for each channel (only useful for interactive runnings)
     for s in settings:
-        print(f"ch{s['channel']} ({s['frontend']}, {s['antenna']}): "
+        logger.info(f"ch{s['channel']} ({s['frontend']}, {s['antenna']}): "
               f"freq={s['freq'] / 1e6:.6f} MHz  rate={s['iq_samp_rate'] / 1e6:.6f} MS/s  "
-              f"gain={s['gain']:.1f} dB  type={s['sample_type']}  throughput={s['throughput_B/s'] / 1e6:.1f} MB/s")
+              f"gain={s['gain']:.1f} dB  otw={s['otw_format']}  cpu={s['cpu_format']}  throughput={s['throughput_B/s'] / 1e6:.1f} MB/s")
 
     total_throughput = sum(s["throughput_B/s"] for s in settings)  # B/s, all channels over the one link
     if total_throughput > LINK_LIMIT:
-        print(f"warning: {total_throughput / 1e6:.0f} MB/s exceeds what 1 GbE can carry; expect overflows")
+        logger.warning(f"{total_throughput / 1e6:.0f} MB/s exceeds what 1 GbE can carry; expect overflows")
     return settings
 
 
@@ -131,7 +139,7 @@ def wait_for_sensor(read, name):
         if time.monotonic() > deadline:
             raise SystemExit(f"error: {name} not locked after {LOCK_TIMEOUT:.0f} s")
         time.sleep(0.1)
-    print(f"{name}: locked")
+    logger.info(f"{name}: locked")
 
 
 def wait_for_locks(usrp, args):
@@ -157,7 +165,7 @@ def wait_for_locks(usrp, args):
         if "lo_locked" in usrp.get_rx_sensor_names(ch):
             wait_for_sensor(lambda: usrp.get_rx_sensor("lo_locked", ch), f"ch{ch} lo_locked")
         else:
-            print(f"warning: ch{ch} has no lo_locked sensor, skipping LO lock check")
+            logger.warning(f"ch{ch} has no lo_locked sensor, skipping LO lock check")
     ''' Check time source (PPS)
     # CAVEAT: UHD doesn't expose a simple boolean sensor for PPS the way it does for ref_locked/lo_locked — there's no get_mboard_sensor("pps_locked", ...). The standard way UHD's own examples (benchmark_rate.cpp, rx_timed_samples.cpp) confirm a PPS edge is actually arriving is different: call usrp.get_time_last_pps() twice, a bit more than a second apart, and check the value actually advanced. If it hasn't moved, no PPS pulse reached the device — it's silently still free-running, and anything relying on time_spec-synchronized starts (which this script does, for multi-channel alignment) could be off.
     '''
@@ -170,7 +178,7 @@ def wait_for_locks(usrp, args):
             if time.monotonic() > deadline:
                 raise SystemExit(f"error: no PPS edge detected after {LOCK_TIMEOUT:.0f} s")
             time.sleep(0.2)
-        print("pps: detected")
+        logger.info("pps: detected")
 
 def record_channel(streamer, iq_samp_rate, duration, path, stop):
     """Stream one channel to its .sigmf-data file until `duration` is reached or `stop` is set.
@@ -192,14 +200,14 @@ def record_channel(streamer, iq_samp_rate, duration, path, stop):
     # Upper bound on how many samples a single packet carries, determined by the transport's packet size (for the X310 over Ethernet, that's bounded by the UDP/Ethernet MTU divided by the sample size). recv() fills the buffer across several packets, so the buffer holds RECV_CHUNK seconds instead, keeping the Python loop rate low at high sample rates
     samps_per_packet = streamer.get_max_num_samps()
     n_buf_samps = max(samps_per_packet, round(RECV_CHUNK * iq_samp_rate))
-    print(f"{path.name}: {iq_samp_rate / 1e6:g} MS/s, {samps_per_packet:,} samples per network packet, "
-          f"each read (recv) returns one batch of up to {n_buf_samps:,} samples "
-          f"({n_buf_samps / iq_samp_rate * 1e3:g} ms, ~{n_buf_samps // samps_per_packet} packets), "
-          f"{total_iq_samps:,} samples in total")
+    logger.info(f"{path.name}: {iq_samp_rate / 1e6:g} MS/s, {samps_per_packet:,} samples per network packet, "
+                f"each read (recv) returns one batch of up to {n_buf_samps:,} samples "
+                f"({n_buf_samps / iq_samp_rate * 1e3:g} ms, ~{n_buf_samps // samps_per_packet} packets), "
+                f"{total_iq_samps:,} samples in total")
     # create an empty buffer array to hold the received samples (one row: this streamer's only channel)
-    # (np.uint16 = one 2-byte I/Q pair per element, written to disk as-is)
-    buf = np.empty((1, n_buf_samps), dtype=np.uint16)
-    zeros = np.zeros(n_buf_samps, dtype=np.uint16)  # written in place of lost samples
+    # (np.uint32 = one 4-byte sc16 I/Q pair per element, written to disk as-is)
+    buf = np.empty((1, n_buf_samps), dtype=np.uint32)
+    zeros = np.zeros(n_buf_samps, dtype=np.uint32)  # written in place of lost samples
     with open(path, "wb") as f:
         try:
             n_reads = 0  # recv() calls that returned samples, for the log
@@ -236,14 +244,14 @@ def record_channel(streamer, iq_samp_rate, duration, path, stop):
                     if n_lost > 0:
                         lost_samps.append((n_written_iq_samps, n_lost))
                         # t = time since the recording started, on the USRP's clock
-                        print(f"{path.name}: packets dropped before read #{n_reads}:\n"
-                              f"    file so far ends at sample {n_written_iq_samps:,}, "
-                              f"with timestamp {n_written_iq_samps / iq_samp_rate:.6f} s\n"
-                              f"    this batch starts at sample {n_expected_iq_samps:,}, "
-                              f"with timestamp {n_expected_iq_samps / iq_samp_rate:.6f} s\n"
-                              f"    -> {n_lost:,} samples ({n_lost / iq_samp_rate * 1e3:.1f} ms, "
-                              f"{n_lost * BYTES_PER_SAMPLE / 1e6:.1f} MB, "
-                              f"~{n_lost / samps_per_packet:.0f} packets) never arrived; zero-filled")
+                        logger.warning(f"{path.name}: packets dropped before read #{n_reads}:\n"
+                                       f"    file so far ends at sample {n_written_iq_samps:,}, "
+                                       f"with timestamp {n_written_iq_samps / iq_samp_rate:.6f} s\n"
+                                       f"    this batch starts at sample {n_expected_iq_samps:,}, "
+                                       f"with timestamp {n_expected_iq_samps / iq_samp_rate:.6f} s\n"
+                                       f"    -> {n_lost:,} samples ({n_lost / iq_samp_rate * 1e3:.1f} ms, "
+                                       f"{n_lost * BYTES_PER_SAMPLE / 1e6:.1f} MB, "
+                                       f"~{n_lost / samps_per_packet:.0f} packets) never arrived; zero-filled")
                         for start in range(0, n_lost, n_buf_samps):
                             zeros[:min(n_buf_samps, n_lost - start)].tofile(f)
                         n_written_iq_samps += n_lost
@@ -268,7 +276,7 @@ def record(usrp, args, settings, paths):
     streamers are started by the same timed command, so they still begin on the same instant."""
     streamers = []
     for s in settings:
-        stream_args = uhd.usrp.StreamArgs(SAMPLE_TYPE, SAMPLE_TYPE)
+        stream_args = uhd.usrp.StreamArgs(CPU_FORMAT, OTW_FORMAT)
         stream_args.channels = [s["channel"]]
         # create a streaming handle session to the USRP that stays open indefinitely until you explicitly tell it to stop
         streamers.append(usrp.get_rx_stream(stream_args))
@@ -298,7 +306,7 @@ def record(usrp, args, settings, paths):
                     stop.set()
                 time.sleep(0.2)
         except KeyboardInterrupt:
-            print("interrupted, finalizing files")
+            logger.warning("interrupted, finalizing files")
             stop.set()
     return [f.result() for f in futures], start_utc
 
@@ -311,7 +319,8 @@ def write_meta(path, data_path, s, args, start_utc, lost_samps, n_written_iq_sam
         "global": {
             "core:datatype": SIGMF_DATATYPE,
             "core:sample_rate": s["iq_samp_rate"],
-            "core:sample_type": s["sample_type"],
+            "core:sample_type": s["cpu_format"],
+            "x310:otw_format": s["otw_format"],
             "core:sample_type_desc": s["sample_type_desc"],
             "core:bytes_per_sample": s["bytes_per_sample"],
             "core:version": "1.0.0",
@@ -370,8 +379,19 @@ def build_archive(name, out_dir, meta_paths):
     return archive_path
 
 
+def check_otw_format():
+    """Refuse to record with an OTW format the X310 doesn't send: UHD accepts e.g. sc8 without any error,
+    but the X310 keeps sending sc16, so every recorded sample would be silently misread."""
+    if OTW_FORMAT not in X310_OTW_FORMATS:
+        logger.error(f"OTW_FORMAT = {OTW_FORMAT!r}, but the X310 only sends {', '.join(sorted(X310_OTW_FORMATS))} "
+                     f"over the wire. UHD would accept {OTW_FORMAT!r} silently and misread every 16-bit sample "
+                     f"(e.g. as 8-bit I/Q pairs), producing corrupted recordings; set OTW_FORMAT = 'sc16'")
+        raise SystemExit(1)
+
+
 def main():
     args = parse_args()
+    check_otw_format()
     # set the recording name to the user-specified name or a UTC timestamp string if not specified
     name = args.name or datetime.now(timezone.utc).strftime("x310_%Y%m%dT%H%M%SZ")
     # create the output directory
@@ -386,7 +406,7 @@ def main():
     # Wait for the USRP to lock its reference clock (external 10 MHz) and the local oscillators (LOs) for each channel
     wait_for_locks(usrp, args)
 
-    print(f"recording {args.duration} s ...")
+    logger.info(f"recording {args.duration} s ...")
     
     # one .sigmf-data path per channel 
     basenames = [args.out_dir / f"{name}_ch{s['channel']}" for s in settings]
@@ -402,12 +422,12 @@ def main():
         meta_path = basename.parent / f"{basename.name}.sigmf-meta"
         write_meta(meta_path, data_path, setting, args, start_utc, lost_samps, n_written_iq_samps)
         meta_paths.append(meta_path)
-        print(f"{data_path}: {n_written_iq_samps} samples ({data_path.stat().st_size / 1e6:.1f} MB), "
-              f"overflows: {len(lost_samps)} ({sum(n for _, n in lost_samps)} samples lost)")
+        logger.info(f"{data_path}: {n_written_iq_samps} samples ({data_path.stat().st_size / 1e6:.1f} MB), "
+                    f"overflows: {len(lost_samps)} ({sum(n for _, n in lost_samps)} samples lost)")
 
     # bundle every channel's Recording into one SigMF Archive (Archive > Collection > Recordings)
     archive_path = build_archive(name, args.out_dir, meta_paths)
-    print(f"archive: {archive_path} ({archive_path.stat().st_size / 1e6:.1f} MB)")
+    logger.info(f"archive: {archive_path} ({archive_path.stat().st_size / 1e6:.1f} MB)")
 
 
 if __name__ == "__main__":
