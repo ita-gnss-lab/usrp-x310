@@ -32,6 +32,11 @@ STAGING_DIR="$REPO_DIR/staging"
 NAS_MOUNT="/mnt/nas"
 NAS_DIR="$NAS_MOUNT/tapyu/recordings_usrp_x310_sjc"  # what $REPO_DIR/recordings links to
 MIN_FREE_GB=35  # one 8-bit recording (~14.4 GB) + its archive copy while bundling (~14.4 GB) + margin
+# sc16 -> int8 divisor per channel (ch0 = L1, ch1 = L5), passed to --int8-div so the service records 8-bit
+# files (ci8); without it x310usrp_record.py would write the 16-bit samples as received (twice the size,
+# more than MIN_FREE_GB allows for). These put the noise std at ~30 of 127 at 25 dB gain, matching
+# RECOMMENDED_INT8_DIVS in x310usrp_record.py
+INT8_DIVS=(1 3)
 
 # Move every finished archive from staging to the NAS. rsync writes each file under a hidden
 # temporary name and renames it only once complete (so the NAS never shows a truncated .sigmf),
@@ -105,7 +110,8 @@ fi
 cd "$REPO_DIR"
 name="x310_$(date -u +%Y%m%dT%H%M%SZ)" # builds a UTC timestamp string and prefixes it with x310_, e.g. x310_20261008T161530Z (year, month, day, literal T, hour, minute, second, literal Z (for Zulu/UTC), via -u to force UTC regardless of the system's local timezone).
 echo "USRP detected; recording ($((count + 1))/$MAX_PER_DAY today) as '$name' ..."
-"$UV_BIN" run x310usrp_record.py --name "$name" --args "$USRP_ARGS" --out-dir "$STAGING_DIR"
+"$UV_BIN" run x310usrp_record.py --name "$name" --args "$USRP_ARGS" --out-dir "$STAGING_DIR" \
+    --int8-div "${INT8_DIVS[@]}"
 
 # append the timestamp of this recording to the per-day log
 echo "$now_epoch" >> "$day_log"

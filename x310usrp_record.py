@@ -1,12 +1,13 @@
 """Record I/Q samples from the USRP X310 + TwinRX to SigMF files.
 
-One recording per channel: <name>_ch<k>.sigmf-data (interleaved int8 I/Q, SigMF ci8)
-+ <name>_ch<k>.sigmf-meta (JSON). The X310 sends 16-bit samples (sc16); this script scales them down
-by a per-channel divisor (--int8-div) and saturates them to 8 bits before writing.
+One recording per channel: <name>_ch<k>.sigmf-data + <name>_ch<k>.sigmf-meta (JSON). The X310 sends
+16-bit samples (sc16). By default they are written exactly as received (interleaved int16 I/Q, SigMF
+ci16_le); with --int8-div they are scaled down by that per-channel divisor and saturated to 8 bits
+(interleaved int8 I/Q, SigMF ci8), halving the file size.
 
-It should be run by x310-record.sh as
+It is run by x310-record.sh (8-bit, L1 / 1 and L5 / 3) as
 ```
-uv run x310usrp_record.py --name "x310_$(date -u +%Y%m%dT%H%M%SZ)" --args addr=192.168.10.2 --out-dir staging
+uv run x310usrp_record.py --name "x310_$(date -u +%Y%m%dT%H%M%SZ)" --args addr=192.168.10.2 --out-dir staging --int8-div 1 3
 ```
 """
 
@@ -58,15 +59,18 @@ X310_OTW_FORMATS = {"sc16"}  # the only OTW format the X310 actually sends; chec
 # in this script (to_int8) instead
 CPU_FORMAT = "sc16"
 CPU_BYTES_PER_SAMPLE = 4  # sc16: 16 bits I + 16 bits Q; also what each sample costs on the 1 GbE link
-# File format: what is written to disk, after to_int8()
-SIGMF_DATATYPE = "ci8"  # SigMF's name for complex int8 (UHD calls it sc8); 1-byte values have no endianness
-SAMPLE_TYPE_DESC = "signed complex 8-bit samples (I+Q), converted on the host from the X310's sc16"
-BYTES_PER_SAMPLE = 2  # on disk: 8 bits I + 8 bits Q = 2 bytes
+# File format: what is written to disk. SigMF datatype -> (description for the metadata, bytes per sample)
+#   ci16_le: the sc16 samples exactly as received (default, no --int8-div)
+#   ci8:     after to_int8() (--int8-div given); SigMF's name for complex int8 (UHD calls it sc8)
+FILE_FORMATS = {
+    "ci16_le": ("signed complex 16-bit samples (I+Q), little-endian, as received from the X310 (sc16)", 4),
+    "ci8": ("signed complex 8-bit samples (I+Q), converted on the host from the X310's sc16", 2),
+}
 INT8_MAX = 127  # values are saturated to [-127, 127] (symmetric, so -128 never appears)
-# Default sc16 -> int8 divisor per band, putting the noise std at ~30 of 127 (~4 std of headroom).
-# Measured sc16 std at 25 dB gain (19/10/2026): ~30-35 on L1, ~92 on L5. Retune with --int8-div if the
-# gain, antenna or LNA change; check_levels.py shows where the levels land.
-DEFAULT_INT8_DIVS = {GPS_L1_FREQ_HZ: 1, GPS_L5_FREQ_HZ: 3}
+# Recommended sc16 -> int8 divisor per band (what x310-record.sh passes), putting the noise std at ~30 of
+# 127 (~4 std of headroom). Measured sc16 std at 25 dB gain (19/10/2026): ~30-35 on L1, ~92 on L5.
+# Retune if the gain, antenna or LNA change; check_levels.py / --verbose show where the levels land.
+RECOMMENDED_INT8_DIVS = {GPS_L1_FREQ_HZ: 1, GPS_L5_FREQ_HZ: 3}
 CLIP_WARN_FRACTION = 1e-4  # warn when more than 0.01 % of a channel's I/Q values were saturated
 '''
 GPS L1 at the antenna is roughly -130 dBm. But at this power level the signal itself is irrelevant to gain-setting — it's 15-20 dB below the thermal noise floor regardless, so GNSS gain-setting is really about placing the noise floor correctly in the ADC's dynamic range, not the signal.
@@ -90,9 +94,10 @@ def parse_args():
     p.add_argument("--gain", type=float, nargs="+", default=[DEFAULT_GAIN_DB],
                    help=f"gain [dB], one value or one per channel (default: {DEFAULT_GAIN_DB})")
     p.add_argument("--int8-div", type=float, nargs="+", default=None,
-                   help="divisor applied to the 16-bit samples before saturating them to 8 bits, one value or one "
-                        f"per channel (default: {DEFAULT_INT8_DIVS[GPS_L1_FREQ_HZ]:g} for L1, "
-                        f"{DEFAULT_INT8_DIVS[GPS_L5_FREQ_HZ]:g} for L5)")
+                   help="write 8-bit files (ci8): divide the 16-bit samples by this, round and saturate to +-127; one "
+                        f"value or one per channel (recommended: {RECOMMENDED_INT8_DIVS[GPS_L1_FREQ_HZ]:g} for L1, "
+                        f"{RECOMMENDED_INT8_DIVS[GPS_L5_FREQ_HZ]:g} for L5). Default: not given, the X310's 16-bit "
+                        "samples (sc16) are written unchanged (ci16_le, twice the file size)")
     p.add_argument("--duration", type=float, default=300.0, help="recording length [s] (default: 300.0)")
     p.add_argument("--channels", type=int, nargs="+", default=[0, 1],
                    help="channel indices (0=RX0, 1=RX1) (default: 0 1)")
@@ -121,15 +126,14 @@ def parse_args():
         args.iq_rate = [DEFAULT_IQ_RATES_SAMPLE_PER_SEC[f] for f in args.freq]
     if len(args.iq_rate) == 1:
         args.iq_rate *= n_channels
-    # same for the int8 divisor
+    # int8 divisor: not given -> no conversion (None per channel, 16-bit files); otherwise replicate like gain
     if args.int8_div is None:
-        if any(f not in DEFAULT_INT8_DIVS for f in args.freq):
-            p.error("--int8-div is required when a channel is tuned to neither GPS L1 nor L5")
-        args.int8_div = [DEFAULT_INT8_DIVS[f] for f in args.freq]
-    if len(args.int8_div) == 1:
-        args.int8_div *= n_channels
-    if any(d <= 0 for d in args.int8_div):
-        p.error("--int8-div must be positive")
+        args.int8_div = [None] * n_channels
+    else:
+        if len(args.int8_div) == 1:
+            args.int8_div *= n_channels
+        if any(d <= 0 for d in args.int8_div):
+            p.error("--int8-div must be positive")
     # check that freq/gain/iq-rate/int8-div have the same number of values as channels
     if any(len(v) != n_channels for v in (args.freq, args.gain, args.iq_rate, args.int8_div)):
         p.error("--freq, --gain, --iq-rate and --int8-div need either one value or one value per channel")
@@ -147,6 +151,8 @@ def apply_settings(usrp, args):
     settings = []
     # apply setting for each channel and record the values
     for ch, freq, gain, iq_rate, int8_div in zip(args.channels, args.freq, args.gain, args.iq_rate, args.int8_div):
+        sigmf_datatype = "ci16_le" if int8_div is None else "ci8"
+        sample_type_desc, bytes_per_sample = FILE_FORMATS[sigmf_datatype]
         usrp.set_rx_rate(iq_rate, ch)
         usrp.set_rx_freq(uhd.types.TuneRequest(freq), ch)
         usrp.set_rx_gain(gain, ch)
@@ -160,9 +166,10 @@ def apply_settings(usrp, args):
             "frontend": usrp.get_rx_subdev_name(ch),
             "otw_format": OTW_FORMAT,
             "cpu_format": CPU_FORMAT,
-            "sample_type_desc": SAMPLE_TYPE_DESC,
-            "int8_div": int8_div,
-            "bytes_per_sample": BYTES_PER_SAMPLE,  # on disk
+            "sigmf_datatype": sigmf_datatype,  # file format
+            "sample_type_desc": sample_type_desc,
+            "int8_div": int8_div,  # None: no 8-bit conversion
+            "bytes_per_sample": bytes_per_sample,  # on disk
             "throughput_B/s": rate_ch * CPU_BYTES_PER_SAMPLE,  # B/s over the link (sc16), this channel alone
         })
         if abs(rate_ch - iq_rate) > 1e-3:
@@ -173,7 +180,9 @@ def apply_settings(usrp, args):
         logger.info(f"ch{s['channel']} ({s['frontend']}, {s['antenna']}): "
               f"freq={s['freq'] / 1e6:.6f} MHz  rate={s['iq_samp_rate'] / 1e6:.6f} MS/s  "
               f"gain={s['gain']:.1f} dB  otw={s['otw_format']}  cpu={s['cpu_format']}  "
-                    f"file={SIGMF_DATATYPE} (sc16 / {s['int8_div']:g})  link={s['throughput_B/s'] / 1e6:.1f} MB/s")
+                    f"file={s['sigmf_datatype']} "
+                    f"({'sc16 as received' if s['int8_div'] is None else f'sc16 / {s['int8_div']:g}'})  "
+                    f"link={s['throughput_B/s'] / 1e6:.1f} MB/s")
 
     total_throughput = sum(s["throughput_B/s"] for s in settings)  # B/s, all channels over the one link
     if total_throughput > LINK_LIMIT_BYTES_PER_SEC:
@@ -242,7 +251,8 @@ def to_int8(sc16, int8_div):
 
 def record_channel(streamer, iq_samp_rate, int8_div, duration, path, stop, verbose=False):
     """Stream one channel to its .sigmf-data file until `duration` is reached or `stop` is set.
-    Samples are received as sc16 and written as int8 (to_int8). Samples lost to an overflow are replaced
+    Samples are received as sc16 and written unchanged (int8_div None, ci16_le) or as int8 (to_int8,
+    ci8). Samples lost to an overflow are replaced
     by zeros, so a sample's position in the file always matches its time (and both channels stay aligned).
     Returns (samples written, zeros included; lost-sample gaps as (sample index, count) pairs;
     number of saturated I/Q values)."""
@@ -266,10 +276,13 @@ def record_channel(streamer, iq_samp_rate, int8_div, duration, path, stop, verbo
                 f"({n_buf_samps / iq_samp_rate * 1e3:g} ms, ~{n_buf_samps // samps_per_packet} packets), "
                 f"{total_iq_samps:,} samples in total")
     # create an empty buffer array to hold the received samples (one row: this streamer's only channel)
-    # (np.uint32 = one 4-byte sc16 I/Q pair per element, converted to 2 int8 values by to_int8 before writing)
+    # (np.uint32 = one 4-byte sc16 I/Q pair per element, written as is, or as 2 int8 values by to_int8)
     buf = np.empty((1, n_buf_samps), dtype=np.uint32)
-    zeros = np.zeros(2 * n_buf_samps, dtype=np.int8)  # written in place of lost samples (I and Q per sample)
-    n_clipped = 0  # I/Q values saturated by to_int8
+    # written in place of lost samples, in the file's format: one uint32 (sc16) or two int8 (I, Q) per sample
+    zeros = np.zeros(n_buf_samps, dtype=np.uint32) if int8_div is None else np.zeros(2 * n_buf_samps, dtype=np.int8)
+    zeros_per_sample = 1 if int8_div is None else 2
+    bytes_per_sample = CPU_BYTES_PER_SAMPLE if int8_div is None else FILE_FORMATS["ci8"][1]
+    n_clipped = 0  # I/Q values saturated by to_int8 (stays 0 without --int8-div)
     with open(path, "wb") as f:
         try:
             n_reads = 0  # recv() calls that returned samples, for the log
@@ -312,6 +325,7 @@ def record_channel(streamer, iq_samp_rate, int8_div, duration, path, stop, verbo
                     n_lost = n_expected_iq_samps - n_written_iq_samps
                     if n_lost > 0:
                         lost_samps.append((n_written_iq_samps, n_lost))
+                        n_lost_total = sum(n for _, n in lost_samps)  # this gap included
                         # t = time since the recording started, on the USRP's clock
                         logger.warning(f"{path.name}: packets dropped before read #{n_reads}:\n"
                                        f"    file so far ends at sample {n_written_iq_samps:,}, "
@@ -319,22 +333,29 @@ def record_channel(streamer, iq_samp_rate, int8_div, duration, path, stop, verbo
                                        f"    this batch starts at sample {n_expected_iq_samps:,}, "
                                        f"with timestamp {n_expected_iq_samps / iq_samp_rate:.6f} s\n"
                                        f"    -> {n_lost:,} samples ({n_lost / iq_samp_rate * 1e3:.1f} ms, "
-                                       f"{n_lost * BYTES_PER_SAMPLE / 1e6:.1f} MB, "
-                                       f"~{n_lost / samps_per_packet:.0f} packets) never arrived; zero-filled")
+                                       f"{n_lost * bytes_per_sample / 1e6:.1f} MB, "
+                                       f"~{n_lost / samps_per_packet:.0f} packets) never arrived in the {n_reads}th read.\n"
+                                       "    They were zero-filled.\n"
+                                       f"    A total of {n_lost_total:,} samples "
+                                       f"({n_lost_total / iq_samp_rate * 1e3:.1f} ms) were lost so far.")
                         for start in range(0, n_lost, n_buf_samps):
-                            zeros[:2 * min(n_buf_samps, n_lost - start)].tofile(f)
+                            zeros[:zeros_per_sample * min(n_buf_samps, n_lost - start)].tofile(f)
                         n_written_iq_samps += n_lost
 
                 n_iq_samp_to_write = min(n_iq_samp_this_call, total_iq_samps - n_written_iq_samps)
-                iq8, n_clipped_now = to_int8(buf[0, :n_iq_samp_to_write], int8_div)
-                if verbose:
-                    # the same read after to_int8, i.e. exactly what goes into the file
-                    logger.trace(f"{path.name}: read #{n_reads}: after conversion, as written to the file (ci8, "
-                                 f"sc16 / {int8_div:g}): std I={iq8[0::2].std():.1f} Q={iq8[1::2].std():.1f}, "
-                                 f"max |x|={np.abs(iq8.astype(np.int16)).max()} (of {INT8_MAX}), "
-                                 f"saturated values: {n_clipped_now:,}")
-                iq8.tofile(f)
-                n_clipped += n_clipped_now
+                if int8_div is None:
+                    # no --int8-div: the sc16 samples go to the file exactly as received (ci16_le)
+                    buf[0, :n_iq_samp_to_write].tofile(f)
+                else:
+                    iq8, n_clipped_now = to_int8(buf[0, :n_iq_samp_to_write], int8_div)
+                    if verbose:
+                        # the same read after to_int8, i.e. exactly what goes into the file
+                        logger.trace(f"{path.name}: read #{n_reads}: after conversion, as written to the file (ci8, "
+                                     f"sc16 / {int8_div:g}): std I={iq8[0::2].std():.1f} Q={iq8[1::2].std():.1f}, "
+                                     f"max |x|={np.abs(iq8.astype(np.int16)).max()} (of {INT8_MAX}), "
+                                     f"saturated values: {n_clipped_now:,}")
+                    iq8.tofile(f)
+                    n_clipped += n_clipped_now
                 n_written_iq_samps += n_iq_samp_to_write
         finally:
             streamer.issue_stream_cmd(uhd.types.StreamCMD(uhd.types.StreamMode.stop_cont))
@@ -399,11 +420,12 @@ def write_meta(path, data_path, s, args, start_utc, lost_samps, n_written_iq_sam
     before being written, instead of just assumed correct."""
     meta = {
         "global": {
-            "core:datatype": SIGMF_DATATYPE,
+            "core:datatype": s["sigmf_datatype"],
             "core:sample_rate": s["iq_samp_rate"],
             "core:sample_type": s["cpu_format"],
             "x310:otw_format": s["otw_format"],
-            # file value = round(sc16 value / int8_div), saturated to +-127; multiply by int8_div to get sc16 units
+            # ci8 file: value = round(sc16 value / int8_div), saturated to +-127; multiply by int8_div to get
+            # sc16 units. ci16_le file (no conversion): int8_div is null and nothing is ever saturated
             "x310:int8_div": s["int8_div"],
             "x310:clipped_values": n_clipped,
             "core:sample_type_desc": s["sample_type_desc"],
@@ -467,15 +489,16 @@ def build_archive(name, out_dir, meta_paths):
 def check_formats():
     """Refuse to record with an OTW format the X310 doesn't send: UHD accepts e.g. sc8 without any error,
     but the X310 keeps sending sc16, so every recorded sample would be silently misread. Also refuse a
-    CPU format other than sc16, which to_int8 relies on (and which UHD 4.6 can't convert sc16 into anyway)."""
+    CPU format other than sc16, which the file writing and to_int8 rely on (and UHD 4.6 can't convert into sc8)."""
     if OTW_FORMAT not in X310_OTW_FORMATS:
         logger.error(f"OTW_FORMAT = {OTW_FORMAT!r}, but the X310 only sends {', '.join(sorted(X310_OTW_FORMATS))} "
                      f"over the wire. UHD would accept {OTW_FORMAT!r} silently and misread every 16-bit sample "
                      f"(e.g. as 8-bit I/Q pairs), producing corrupted recordings; set OTW_FORMAT = 'sc16'")
         raise SystemExit(1)
     if CPU_FORMAT != "sc16":
-        logger.error(f"CPU_FORMAT = {CPU_FORMAT!r}, but this script expects sc16 from recv() and converts it to "
-                     f"8 bits itself (to_int8); UHD 4.6 has no sc16 -> {CPU_FORMAT} converter. Set CPU_FORMAT = 'sc16'")
+        logger.error(f"CPU_FORMAT = {CPU_FORMAT!r}, but this script expects sc16 from recv(), writes it as is or "
+                     f"converts it to 8 bits itself (--int8-div); UHD 4.6 has no sc16 -> {CPU_FORMAT} converter. "
+                     f"Set CPU_FORMAT = 'sc16'")
         raise SystemExit(1)
 
 
