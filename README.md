@@ -32,7 +32,7 @@ Output in `recordings/`, per channel:
 - `<name>_ch<k>.sigmf-data`: interleaved int8 I/Q (`ci8`), 2 bytes per sample
 - `<name>_ch<k>.sigmf-meta`: JSON with sample rate, center frequency, gain, start time and any overflow gaps
 
-Over 1 GbE, keep the sum of the channels' rates ≲ 25 MS/s (the default 4 + 20 MS/s in 8-bit `sc8` is 48 MB/s, about half the link; ~14.4 GB per 5-min recording). X310 rates are 200 MHz / integer, so the requested rate may be coerced. The script prints the actual value.
+Over 1 GbE, keep the sum of the channels' rates ≲ 25 MS/s (the X310 always sends 16-bit `sc16`, so the default 4 + 20 MS/s is 96 MB/s, close to the limit; the script converts to 8-bit `ci8` before writing, ~14.4 GB per 5-min recording). X310 rates are 200 MHz / integer, so the requested rate may be coerced. The script prints the actual value.
 
 ### Load
 

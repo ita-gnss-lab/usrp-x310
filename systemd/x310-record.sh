@@ -31,7 +31,7 @@ MIN_GAP_SEC=$((30 * 60))
 STAGING_DIR="$REPO_DIR/staging"
 NAS_MOUNT="/mnt/nas"
 NAS_DIR="$NAS_MOUNT/tapyu/recordings_usrp_x310_sjc"  # what $REPO_DIR/recordings links to
-MIN_FREE_GB=62  # one 16-bit recording (~28.8 GB) + its archive copy while bundling (~28.8 GB) + margin
+MIN_FREE_GB=35  # one 8-bit recording (~14.4 GB) + its archive copy while bundling (~14.4 GB) + margin
 
 # Move every finished archive from staging to the NAS. rsync writes each file under a hidden
 # temporary name and renames it only once complete (so the NAS never shows a truncated .sigmf),
