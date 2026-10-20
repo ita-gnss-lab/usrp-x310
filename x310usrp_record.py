@@ -190,13 +190,19 @@ def record_channel(streamer, iq_samp_rate, duration, path, stop):
     timeout = START_DELAY + 1.0
 
     # Upper bound on how many samples a single packet carries, determined by the transport's packet size (for the X310 over Ethernet, that's bounded by the UDP/Ethernet MTU divided by the sample size). recv() fills the buffer across several packets, so the buffer holds RECV_CHUNK seconds instead, keeping the Python loop rate low at high sample rates
-    n_buf_samps = max(streamer.get_max_num_samps(), round(RECV_CHUNK * iq_samp_rate))
+    samps_per_packet = streamer.get_max_num_samps()
+    n_buf_samps = max(samps_per_packet, round(RECV_CHUNK * iq_samp_rate))
+    print(f"{path.name}: {iq_samp_rate / 1e6:g} MS/s, {samps_per_packet:,} samples per network packet, "
+          f"each read (recv) returns one batch of up to {n_buf_samps:,} samples "
+          f"({n_buf_samps / iq_samp_rate * 1e3:g} ms, ~{n_buf_samps // samps_per_packet} packets), "
+          f"{total_iq_samps:,} samples in total")
     # create an empty buffer array to hold the received samples (one row: this streamer's only channel)
     # (np.uint16 = one 2-byte I/Q pair per element, written to disk as-is)
     buf = np.empty((1, n_buf_samps), dtype=np.uint16)
     zeros = np.zeros(n_buf_samps, dtype=np.uint16)  # written in place of lost samples
     with open(path, "wb") as f:
         try:
+            n_reads = 0  # recv() calls that returned samples, for the log
             while n_written_iq_samps < total_iq_samps and not stop.is_set():
                 # Pulls one batch of received I/Q samples from the USRP into buf, waiting up to timeout seconds if none have arrived yet, and returns how many samples it actually got this call (n_iq_samp_this_call).
                 n_iq_samp_this_call = streamer.recv(buf, md, timeout)
@@ -209,6 +215,7 @@ def record_channel(streamer, iq_samp_rate, duration, path, stop):
                     raise RuntimeError(f"receive error: {md.strerror()}")
                 if n_iq_samp_this_call == 0:
                     continue
+                n_reads += 1
 
                 # Lost-sample check: does this batch continue the file directly, or is there a hole in between?
                 # It compares the time right after the file's last sample with the time of the batch's first
@@ -228,8 +235,15 @@ def record_channel(streamer, iq_samp_rate, duration, path, stop):
                     n_lost = n_expected_iq_samps - n_written_iq_samps
                     if n_lost > 0:
                         lost_samps.append((n_written_iq_samps, n_lost))
-                        print(f"{path.name}: overflow: {n_lost} samples lost at sample {n_written_iq_samps}, "
-                              f"zero-filled")
+                        # t = time since the recording started, on the USRP's clock
+                        print(f"{path.name}: packets dropped before read #{n_reads}:\n"
+                              f"    file so far ends at sample {n_written_iq_samps:,}, "
+                              f"with timestamp {n_written_iq_samps / iq_samp_rate:.6f} s\n"
+                              f"    this batch starts at sample {n_expected_iq_samps:,}, "
+                              f"with timestamp {n_expected_iq_samps / iq_samp_rate:.6f} s\n"
+                              f"    -> {n_lost:,} samples ({n_lost / iq_samp_rate * 1e3:.1f} ms, "
+                              f"{n_lost * BYTES_PER_SAMPLE / 1e6:.1f} MB, "
+                              f"~{n_lost / samps_per_packet:.0f} packets) never arrived; zero-filled")
                         for start in range(0, n_lost, n_buf_samps):
                             zeros[:min(n_buf_samps, n_lost - start)].tofile(f)
                         n_written_iq_samps += n_lost

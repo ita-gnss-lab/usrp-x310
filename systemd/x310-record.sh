@@ -8,6 +8,9 @@
 #   3. once found, records (each recording is x310usrp_record.py's default: 5 min)
 #   4. at most $MAX_PER_DAY recordings per calendar day
 #   5. the second recording must start at least $MIN_GAP_SEC after the first
+#   6. records to a local staging directory, then moves the finished archive to
+#      the NAS -- writing straight to the NAS (SMB) stalls the receive loop for
+#      ~100 ms at a time, longer than the L5 receive buffer lasts, so samples drop
 #
 # All five are re-checked here regardless of the timer schedule, so a manual
 # `systemctl start`, a Persistent=true catch-up run, or a future timer edit
@@ -24,6 +27,30 @@ WINDOW_START="16:00"
 WINDOW_END="18:00"
 MAX_PER_DAY=2
 MIN_GAP_SEC=$((30 * 60))
+# Record to the local disk first (fast, steady writes), then move the archive to the NAS.
+STAGING_DIR="$REPO_DIR/staging"
+NAS_MOUNT="/mnt/nas"
+NAS_DIR="$NAS_MOUNT/tapyu/recordings_usrp_x310_sjc"  # what $REPO_DIR/recordings links to
+MIN_FREE_GB=35  # one recording (~14.4 GB) + its archive copy while bundling (~14.4 GB) + margin
+
+# Move every finished archive from staging to the NAS. rsync writes each file under a hidden
+# temporary name and renames it only once complete (so the NAS never shows a truncated .sigmf),
+# checksums the transfer, and deletes the local copy only after it succeeded. -rt rather than -a:
+# the SMB share sets its own owner/permissions, so only files + timestamps are copied.
+# Never fatal: whatever is left in staging is retried on the next run.
+move_to_nas() {
+    if ! mountpoint -q "$NAS_MOUNT"; then
+        echo "warning: NAS not mounted at $NAS_MOUNT; keeping archives in $STAGING_DIR for now"
+        return 0
+    fi
+    local files=("$STAGING_DIR"/*.sigmf)
+    [[ -e "${files[0]}" ]] || return 0
+    if rsync -rt --remove-source-files "${files[@]}" "$NAS_DIR/"; then
+        echo "moved ${#files[@]} archive(s) to $NAS_DIR"
+    else
+        echo "warning: rsync to $NAS_DIR failed; whatever it didn't move stays in $STAGING_DIR"
+    fi
+}
 
 mkdir -p "$STATE_DIR"
 
@@ -65,13 +92,25 @@ if ! uhd_find_devices --args="$USRP_ARGS" >/dev/null 2>&1; then
     exit 0
 fi
 
+# skip (instead of failing mid-recording) if the local disk can't hold a recording
+mkdir -p "$STAGING_DIR"
+free_gb=$(( $(df --output=avail -k "$STAGING_DIR" | tail -1) / 1024 / 1024 ))
+if (( free_gb < MIN_FREE_GB )); then
+    echo "only ${free_gb} GB free in $STAGING_DIR, need ${MIN_FREE_GB} GB; skipping"
+    move_to_nas  # maybe frees space for the next tick
+    exit 0
+fi
+
 # Record during 5 min
 cd "$REPO_DIR"
 name="x310_$(date -u +%Y%m%dT%H%M%SZ)" # builds a UTC timestamp string and prefixes it with x310_, e.g. x310_20261008T161530Z (year, month, day, literal T, hour, minute, second, literal Z (for Zulu/UTC), via -u to force UTC regardless of the system's local timezone).
 echo "USRP detected; recording ($((count + 1))/$MAX_PER_DAY today) as '$name' ..."
-"$UV_BIN" run x310usrp_record.py --name "$name" --args "$USRP_ARGS"
+"$UV_BIN" run x310usrp_record.py --name "$name" --args "$USRP_ARGS" --out-dir "$STAGING_DIR"
 
 # append the timestamp of this recording to the per-day log
 echo "$now_epoch" >> "$day_log"
 # Clean up old per-day logs, so the state directory doesn't grow unbounded.
 find "$STATE_DIR" -maxdepth 1 -name 'day-*.log' -mtime +30 -delete
+
+# the recording is done (and counted), so the slow NAS copy can't cost samples anymore
+move_to_nas

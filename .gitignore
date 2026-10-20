@@ -530,8 +530,9 @@ pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
 
-# I/Q recordings
-recordings/
+# I/Q recordings (recordings is a symlink to the NAS; staging/ is the local scratch area)
+recordings
+staging/
 *.sigmf-data
 
 # transient WhatsApp pairing QR
