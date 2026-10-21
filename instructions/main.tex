@@ -286,7 +286,7 @@ Scheduled, unattended recording is driven by a timer/service pair in \texttt{sys
     \item recording to a local staging directory (\texttt{staging/}, skipped if it has less than 35~GB free) and only then moving the finished archive to the NAS (\texttt{recordings/} links to it). Writing directly to the NAS over SMB stalls the receive loop for about 100~ms at a time, longer than the roughly 70~ms the L5 channel's receive buffer lasts at 40~MB/s, which drops samples. The archive is moved with \texttt{rsync -rt --remove-source-files}, which writes it under a hidden temporary name and renames it only once complete (so the NAS never shows a truncated \texttt{.sigmf}), and deletes the local copy only after a successful transfer; if the NAS is unreachable, the archive stays in \texttt{staging/} and is moved on the next run.
 \end{itemize}
 
-Manual recordings should likewise use a local directory, e.g.\ \texttt{uv run x310usrp\_record.py --out-dir staging}, and be moved to the NAS afterwards.
+Manual recordings should likewise use a local directory, e.g.\ \texttt{uv run x310usrp\_record.py --staging-dir staging}, and be moved to the NAS afterwards.
 
 \texttt{x310-record.timer} fires every 15~min between 16:00 and 18:00; \texttt{x310-record.sh} (invoked by \texttt{x310-record.service}) is what actually evaluates all of the conditions above and, if they pass, runs \texttt{x310usrp\_record.py}. Install and enable it with:
 

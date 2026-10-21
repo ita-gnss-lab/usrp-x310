@@ -538,6 +538,6 @@ staging/
 # transient WhatsApp pairing QR
 whatsapp_qr.png
 
-# GNSS-SDR outputs (gps_l1_l5_file.sh) and manually extracted archives
+# GNSS-SDR outputs (run_gnss_sdr.sh) and manually extracted archives
 gnss_sdr_output/
 extracted_sigmf/

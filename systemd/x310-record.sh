@@ -9,7 +9,7 @@
 #   4. at most $MAX_PER_DAY recordings per calendar day
 #   5. the second recording must start at least $MIN_GAP_SEC after the first
 #   6. records to a local staging directory, then bundles the finished recording
-#      straight into a .sigmf archive on the NAS (--archive-dir), so the local disk
+#      straight into a .sigmf archive on the NAS (--out-dir), so the local disk
 #      only ever holds one copy -- recording straight to the NAS (SMB) would stall
 #      the receive loop for ~100 ms at a time, longer than the L5 receive buffer
 #      lasts, so samples would drop; bundling happens after recording, when that
@@ -106,7 +106,7 @@ fi
 
 # where to bundle the archive: straight onto the NAS if it is mounted, otherwise locally
 if mountpoint -q "$NAS_MOUNT"; then
-    archive_args=(--archive-dir "$NAS_DIR")
+    archive_args=(--out-dir "$NAS_DIR")
     MIN_FREE_GB=$MIN_FREE_GB_NAS
 else
     echo "warning: NAS not mounted at $NAS_MOUNT; the archive will be built in $STAGING_DIR"
@@ -127,7 +127,7 @@ fi
 cd "$REPO_DIR"
 name="x310_$(date -u +%Y%m%dT%H%M%SZ)" # builds a UTC timestamp string and prefixes it with x310_, e.g. x310_20261008T161530Z (year, month, day, literal T, hour, minute, second, literal Z (for Zulu/UTC), via -u to force UTC regardless of the system's local timezone).
 echo "USRP detected; recording ($((count + 1))/$MAX_PER_DAY today) as '$name' ..."
-"$UV_BIN" run x310usrp_record.py --name "$name" --args "$USRP_ARGS" --out-dir "$STAGING_DIR" \
+"$UV_BIN" run x310usrp_record.py --name "$name" --args "$USRP_ARGS" --staging-dir "$STAGING_DIR" \
     --int8-div "${INT8_DIVS[@]}" "${archive_args[@]}"
 
 # append the timestamp of this recording to the per-day log

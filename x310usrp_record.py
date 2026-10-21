@@ -7,7 +7,7 @@ ci16_le); with --int8-div they are scaled down by that per-channel divisor and s
 
 It is run by x310-record.sh (8-bit, L1 / 1 and L5 / 3) as
 ```
-uv run x310usrp_record.py --name "x310_$(date -u +%Y%m%dT%H%M%SZ)" --args addr=192.168.10.2 --out-dir staging --int8-div 1 3
+uv run x310usrp_record.py --name "x310_$(date -u +%Y%m%dT%H%M%SZ)" --args addr=192.168.10.2 --staging-dir staging --int8-div 1 3
 ```
 """
 
@@ -46,9 +46,11 @@ LINK_LIMIT_BYTES_PER_SEC = 100e6  # B/s, practical payload limit of 1 GbE
 # second, which is trivial for Python to keep that up.
 RECV_CHUNK_SEC = 0.01
 GPS_L1_FREQ_HZ = 1575.42e6
+GPS_L2_FREQ_HZ = 1227.60e6
 GPS_L5_FREQ_HZ = 1176.45e6
-# default I/Q rate per band: L5's ~20 MHz main lobe (10.23 Mcps) needs 20 MS/s, L1 C/A's ~2 MHz is fine at 4 MS/s
-DEFAULT_IQ_RATES_SAMPLE_PER_SEC = {GPS_L1_FREQ_HZ: 4e6, GPS_L5_FREQ_HZ: 20e6}  # Hz -> S/s
+# default I/Q rate per band: L5's ~20 MHz main lobe (10.23 Mcps) needs 20 MS/s, L1 C/A's and L2C's ~2 MHz
+# (1.023 Mcps) are fine at 4 MS/s
+DEFAULT_IQ_RATES_SAMPLE_PER_SEC = {GPS_L1_FREQ_HZ: 4e6, GPS_L2_FREQ_HZ: 4e6, GPS_L5_FREQ_HZ: 20e6}  # Hz -> S/s
 # OTW (over-the-wire) format: how samples travel from the USRP to the host. The X310 only supports sc16;
 # asking UHD for another (e.g. sc8) is accepted silently, but the X310 still sends sc16 and UHD then
 # misreads every 16-bit value as an 8-bit I/Q pair (that is what broke the 19-20/10/2026 recordings)
@@ -70,7 +72,8 @@ INT8_MAX = 127  # values are saturated to [-127, 127] (symmetric, so -128 never 
 # Recommended sc16 -> int8 divisor per band (what x310-record.sh passes), putting the noise std at ~30 of
 # 127 (~4 std of headroom). Measured sc16 std at 25 dB gain (19/10/2026): ~30-35 on L1, ~92 on L5.
 # Retune if the gain, antenna or LNA change; check_levels.py / --verbose show where the levels land.
-RECOMMENDED_INT8_DIVS = {GPS_L1_FREQ_HZ: 1, GPS_L5_FREQ_HZ: 3}
+# L2: provisional, not measured yet -- same rate and bandwidth as L1, so a similar noise std is expected
+RECOMMENDED_INT8_DIVS = {GPS_L1_FREQ_HZ: 1, GPS_L2_FREQ_HZ: 1, GPS_L5_FREQ_HZ: 3}
 CLIP_WARN_FRACTION = 1e-4  # warn when more than 0.01 % of a channel's I/Q values were saturated
 '''
 GPS L1 at the antenna is roughly -130 dBm. But at this power level the signal itself is irrelevant to gain-setting — it's 15-20 dB below the thermal noise floor regardless, so GNSS gain-setting is really about placing the noise floor correctly in the ADC's dynamic range, not the signal.
@@ -87,15 +90,17 @@ def parse_args():
     p.add_argument("--args", default="addr=192.168.10.2", help="UHD device args (default: addr=192.168.10.2)")
     p.add_argument("--freq", type=float, nargs="+", default=[GPS_L1_FREQ_HZ, GPS_L5_FREQ_HZ],
                    help=f"center frequency per channel [Hz] (default: {GPS_L1_FREQ_HZ / 1e6:g}e6 "
-                        f"{GPS_L5_FREQ_HZ / 1e6:g}e6, i.e. GPS L1 and L5)")
+                        f"{GPS_L5_FREQ_HZ / 1e6:g}e6, i.e. GPS L1 and L5; {GPS_L2_FREQ_HZ / 1e6:g}e6 for GPS L2)")
     p.add_argument("--iq-rate", type=float, nargs="+", default=None,
                    help="sample rate [S/s] at which the IQ samples are recorded, one value or one per channel "
-                        f"(default: {DEFAULT_IQ_RATES_SAMPLE_PER_SEC[GPS_L1_FREQ_HZ]:g} for L1, {DEFAULT_IQ_RATES_SAMPLE_PER_SEC[GPS_L5_FREQ_HZ]:g} for L5)")
+                        f"(default: {DEFAULT_IQ_RATES_SAMPLE_PER_SEC[GPS_L1_FREQ_HZ]:g} for L1, {DEFAULT_IQ_RATES_SAMPLE_PER_SEC[GPS_L2_FREQ_HZ]:g} for L2, "
+                        f"{DEFAULT_IQ_RATES_SAMPLE_PER_SEC[GPS_L5_FREQ_HZ]:g} for L5)")
     p.add_argument("--gain", type=float, nargs="+", default=[DEFAULT_GAIN_DB],
                    help=f"gain [dB], one value or one per channel (default: {DEFAULT_GAIN_DB})")
     p.add_argument("--int8-div", type=float, nargs="+", default=None,
                    help="write 8-bit files (ci8): divide the 16-bit samples by this, round and saturate to +-127; one "
                         f"value or one per channel (recommended: {RECOMMENDED_INT8_DIVS[GPS_L1_FREQ_HZ]:g} for L1, "
+                        f"{RECOMMENDED_INT8_DIVS[GPS_L2_FREQ_HZ]:g} for L2 (provisional), "
                         f"{RECOMMENDED_INT8_DIVS[GPS_L5_FREQ_HZ]:g} for L5). Default: not given, the X310's 16-bit "
                         "samples (sc16) are written unchanged (ci16_le, twice the file size)")
     p.add_argument("--duration", type=float, default=300.0, help="recording length [s] (default: 300.0)")
@@ -105,12 +110,12 @@ def parse_args():
                    help="10 MHz reference: external | internal (default: external)")
     p.add_argument("--time-source", default="internal",
                    help="PPS source: internal | external (default: internal)")
-    p.add_argument("--out-dir", type=Path, default=Path("recordings"),
-                   help="output directory (default: recordings)")
-    p.add_argument("--archive-dir", type=Path, default=None,
-                   help="where to build the final .sigmf archive, e.g. the NAS (default: --out-dir). The samples are "
-                        "recorded to --out-dir first (fast local disk), then bundled straight into this directory, so "
-                        "--out-dir only ever holds one copy of the recording instead of two")
+    p.add_argument("--staging-dir", type=Path, default=Path("recordings"),
+                   help="directory the samples are recorded to, ideally a fast local disk (default: recordings)")
+    p.add_argument("--out-dir", type=Path, default=None,
+                   help="where to build the final .sigmf archive, e.g. the NAS (default: --staging-dir). The samples "
+                        "are recorded to --staging-dir first, then bundled straight into this directory, so "
+                        "--staging-dir only ever holds one copy of the recording instead of two")
     p.add_argument("--name", default=None, help="file prefix (default: UTC timestamp)")
     p.add_argument("--verbose", action="store_true",
                    help="log (at TRACE level) the I/Q standard deviation and peak of every read, in the X310's sc16 "
@@ -126,7 +131,7 @@ def parse_args():
     # no --iq-rate given: pick each channel's rate from the band it is tuned to
     if args.iq_rate is None:
         if any(f not in DEFAULT_IQ_RATES_SAMPLE_PER_SEC for f in args.freq):
-            p.error("--iq-rate is required when a channel is tuned to neither GPS L1 nor L5")
+            p.error("--iq-rate is required when a channel is tuned to none of GPS L1, L2 or L5")
         args.iq_rate = [DEFAULT_IQ_RATES_SAMPLE_PER_SEC[f] for f in args.freq]
     if len(args.iq_rate) == 1:
         args.iq_rate *= n_channels
@@ -466,27 +471,27 @@ def write_meta(path, data_path, s, args, start_utc, lost_samps, n_written_iq_sam
     sigmf_file.tofile(path, toarchive=False)
 
 
-def build_archive(name, out_dir, meta_paths, archive_dir=None):
+def build_archive(name, staging_dir, meta_paths, out_dir=None):
     """Bundle this session's Recordings (one per channel) into a single SigMF Archive:
     Archive (<name>.sigmf, a tar file) > Collection (<name>.sigmf-collection, linking every
     channel's Recording by name + sha512 hash) > Recordings (each channel's .sigmf-meta +
     .sigmf-data pair) -- matching the SigMF spec's Archive/Collection/Recording structure.
 
-    The archive is built in archive_dir (default: out_dir), e.g. straight onto the NAS, so out_dir never
+    The archive is built in out_dir (default: staging_dir), e.g. straight onto the NAS, so staging_dir never
     holds the recording twice. It is written under a hidden .partial name and renamed only once complete,
     so a full disk or a dropped NAS never leaves a truncated <name>.sigmf behind. The loose per-channel
-    files are removed only after that succeeded; if bundling fails they stay in out_dir, complete and
-    usable (gps_l1_l5_file.sh accepts them as <out_dir>/<name>), and the error is raised."""
-    archive_dir = archive_dir or out_dir
-    collection = SigMFCollection(metafiles=[p.name for p in meta_paths], base_path=out_dir)
-    collection_path = out_dir / f"{name}.sigmf-collection"
+    files are removed only after that succeeded; if bundling fails they stay in staging_dir, complete and
+    usable (run_gnss_sdr.sh accepts them as <staging_dir>/<name>), and the error is raised."""
+    out_dir = out_dir or staging_dir
+    collection = SigMFCollection(metafiles=[p.name for p in meta_paths], base_path=staging_dir)
+    collection_path = staging_dir / f"{name}.sigmf-collection"
     collection.tofile(collection_path, overwrite=True)
 
     data_paths = [p.with_suffix(".sigmf-data") for p in meta_paths]
     members = [collection_path, *meta_paths, *data_paths]
 
-    archive_path = archive_dir / f"{name}.sigmf"
-    partial_path = archive_dir / f".{name}.sigmf.partial"
+    archive_path = out_dir / f"{name}.sigmf"
+    partial_path = out_dir / f".{name}.sigmf.partial"
     logger.info(f"bundling into {archive_path} ...")
     try:
         with tarfile.open(partial_path, "w") as tar:
@@ -497,7 +502,7 @@ def build_archive(name, out_dir, meta_paths, archive_dir=None):
         partial_path.rename(archive_path)
     except BaseException:
         partial_path.unlink(missing_ok=True)
-        logger.error(f"could not build {archive_path}; the recording is kept as loose files in {out_dir}")
+        logger.error(f"could not build {archive_path}; the recording is kept as loose files in {staging_dir}")
         raise
 
     for member in members:
@@ -529,8 +534,8 @@ def main():
     check_formats()
     # set the recording name to the user-specified name or a UTC timestamp string if not specified
     name = args.name or datetime.now(timezone.utc).strftime("x310_%Y%m%dT%H%M%SZ")
-    # create the output directory
-    args.out_dir.mkdir(parents=True, exist_ok=True)
+    # create the staging directory
+    args.staging_dir.mkdir(parents=True, exist_ok=True)
 
     '''
     It opens a connection to the USRP and gives you a handle to control it: uhd.usrp.MultiUSRP(...) is UHD's main Python class for talking to a USRP device, and args.args (the --args device string, e.g. "addr=192.168.10.2") tells it which device to connect to and how — here, over Ethernet at that IP.
@@ -544,7 +549,7 @@ def main():
     logger.info(f"recording {args.duration} s ...")
     
     # one .sigmf-data path per channel 
-    basenames = [args.out_dir / f"{name}_ch{s['channel']}" for s in settings]
+    basenames = [args.staging_dir / f"{name}_ch{s['channel']}" for s in settings]
     # add the extension
     data_paths = [b.parent / f"{b.name}.sigmf-data" for b in basenames]
     
@@ -562,12 +567,12 @@ def main():
                     f"saturated I/Q values: {n_clipped:,}")
 
     # bundle every channel's Recording into one SigMF Archive (Archive > Collection > Recordings), in
-    # --archive-dir if given and reachable (e.g. the NAS), otherwise next to the loose files
-    archive_dir = args.archive_dir
-    if archive_dir is not None and not archive_dir.is_dir():
-        logger.warning(f"--archive-dir {archive_dir} is not reachable; building the archive in {args.out_dir} instead")
-        archive_dir = None
-    archive_path = build_archive(name, args.out_dir, meta_paths, archive_dir)
+    # --out-dir if given and reachable (e.g. the NAS), otherwise next to the loose files
+    out_dir = args.out_dir
+    if out_dir is not None and not out_dir.is_dir():
+        logger.warning(f"--out-dir {out_dir} is not reachable; building the archive in {args.staging_dir} instead")
+        out_dir = None
+    archive_path = build_archive(name, args.staging_dir, meta_paths, out_dir)
     logger.info(f"archive: {archive_path} ({archive_path.stat().st_size / 1e6:.1f} MB)")
 
 
