@@ -107,6 +107,10 @@ def parse_args():
                    help="PPS source: internal | external (default: internal)")
     p.add_argument("--out-dir", type=Path, default=Path("recordings"),
                    help="output directory (default: recordings)")
+    p.add_argument("--archive-dir", type=Path, default=None,
+                   help="where to build the final .sigmf archive, e.g. the NAS (default: --out-dir). The samples are "
+                        "recorded to --out-dir first (fast local disk), then bundled straight into this directory, so "
+                        "--out-dir only ever holds one copy of the recording instead of two")
     p.add_argument("--name", default=None, help="file prefix (default: UTC timestamp)")
     p.add_argument("--verbose", action="store_true",
                    help="log (at TRACE level) the I/Q standard deviation and peak of every read, in the X310's sc16 "
@@ -337,7 +341,8 @@ def record_channel(streamer, iq_samp_rate, int8_div, duration, path, stop, verbo
                                        f"~{n_lost / samps_per_packet:.0f} packets) never arrived in the {n_reads}th read.\n"
                                        "    They were zero-filled.\n"
                                        f"    A total of {n_lost_total:,} samples "
-                                       f"({n_lost_total / iq_samp_rate * 1e3:.1f} ms) were lost so far.")
+                                       f"(~{n_lost_total / samps_per_packet:.0f} packets, "
+                                       f"{n_lost_total / iq_samp_rate * 1e3:.1f} ms) were lost so far.")
                         for start in range(0, n_lost, n_buf_samps):
                             zeros[:zeros_per_sample * min(n_buf_samps, n_lost - start)].tofile(f)
                         n_written_iq_samps += n_lost
@@ -461,12 +466,18 @@ def write_meta(path, data_path, s, args, start_utc, lost_samps, n_written_iq_sam
     sigmf_file.tofile(path, toarchive=False)
 
 
-def build_archive(name, out_dir, meta_paths):
+def build_archive(name, out_dir, meta_paths, archive_dir=None):
     """Bundle this session's Recordings (one per channel) into a single SigMF Archive:
     Archive (<name>.sigmf, a tar file) > Collection (<name>.sigmf-collection, linking every
     channel's Recording by name + sha512 hash) > Recordings (each channel's .sigmf-meta +
     .sigmf-data pair) -- matching the SigMF spec's Archive/Collection/Recording structure.
-    The loose per-channel files are removed afterward, leaving just the one archive file."""
+
+    The archive is built in archive_dir (default: out_dir), e.g. straight onto the NAS, so out_dir never
+    holds the recording twice. It is written under a hidden .partial name and renamed only once complete,
+    so a full disk or a dropped NAS never leaves a truncated <name>.sigmf behind. The loose per-channel
+    files are removed only after that succeeded; if bundling fails they stay in out_dir, complete and
+    usable (gps_l1_l5_file.sh accepts them as <out_dir>/<name>), and the error is raised."""
+    archive_dir = archive_dir or out_dir
     collection = SigMFCollection(metafiles=[p.name for p in meta_paths], base_path=out_dir)
     collection_path = out_dir / f"{name}.sigmf-collection"
     collection.tofile(collection_path, overwrite=True)
@@ -474,12 +485,20 @@ def build_archive(name, out_dir, meta_paths):
     data_paths = [p.with_suffix(".sigmf-data") for p in meta_paths]
     members = [collection_path, *meta_paths, *data_paths]
 
-    archive_path = out_dir / f"{name}.sigmf"
-    with tarfile.open(archive_path, "w") as tar:
-        for member in members:
-            # one subdirectory named after the archive holding everything flat, same
-            # convention SigMF's own single-recording SigMFArchive uses internally
-            tar.add(member, arcname=f"{name}/{member.name}")
+    archive_path = archive_dir / f"{name}.sigmf"
+    partial_path = archive_dir / f".{name}.sigmf.partial"
+    logger.info(f"bundling into {archive_path} ...")
+    try:
+        with tarfile.open(partial_path, "w") as tar:
+            for member in members:
+                # one subdirectory named after the archive holding everything flat, same
+                # convention SigMF's own single-recording SigMFArchive uses internally
+                tar.add(member, arcname=f"{name}/{member.name}")
+        partial_path.rename(archive_path)
+    except BaseException:
+        partial_path.unlink(missing_ok=True)
+        logger.error(f"could not build {archive_path}; the recording is kept as loose files in {out_dir}")
+        raise
 
     for member in members:
         member.unlink()
@@ -542,8 +561,13 @@ def main():
                     f"overflows: {len(lost_samps)} ({sum(n for _, n in lost_samps)} samples lost), "
                     f"saturated I/Q values: {n_clipped:,}")
 
-    # bundle every channel's Recording into one SigMF Archive (Archive > Collection > Recordings)
-    archive_path = build_archive(name, args.out_dir, meta_paths)
+    # bundle every channel's Recording into one SigMF Archive (Archive > Collection > Recordings), in
+    # --archive-dir if given and reachable (e.g. the NAS), otherwise next to the loose files
+    archive_dir = args.archive_dir
+    if archive_dir is not None and not archive_dir.is_dir():
+        logger.warning(f"--archive-dir {archive_dir} is not reachable; building the archive in {args.out_dir} instead")
+        archive_dir = None
+    archive_path = build_archive(name, args.out_dir, meta_paths, archive_dir)
     logger.info(f"archive: {archive_path} ({archive_path.stat().st_size / 1e6:.1f} MB)")
 
 

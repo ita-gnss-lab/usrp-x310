@@ -6,6 +6,7 @@ readme = "README.md"
 # Must match the system Python that python3-uhd (apt) is built for
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "h5py>=3.16.0",
     "loguru>=0.7.3",
     # Keep ABI parity with the system numpy that python3-uhd was built against
     "numpy>=1.26,<2",
