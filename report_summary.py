@@ -81,6 +81,12 @@ def load_sessions(out_dir):
     straight from the tar header -- into one entry per session, channels sorted."""
     sessions = []
     for archive_path in sorted(out_dir.glob("*.sigmf")):
+        try:
+            with tarfile.open(archive_path) as tar:
+                tar.getmembers()
+        except (tarfile.TarError, OSError) as e:  # e.g. truncated by a full disk while it was being bundled
+            print(f"warning: skipping unreadable archive {archive_path}: {e}")
+            continue
         with tarfile.open(archive_path) as tar:
             data_sizes = {m.name: m.size for m in tar.getmembers() if m.name.endswith(".sigmf-data")}
             channels = []
@@ -157,8 +163,10 @@ def tex_escape(text):
     return str(text).translate(_TEX_SPECIAL)
 
 
-def session_subsubsection_tex(session, record_number):
-    """Build one '\\subsubsection{...}' + metadata table for a single recording session."""
+def session_subsubsection_tex(session, record_number, tex_dir=Path("report")):
+    """Build one '\\subsubsection{...}' + metadata table for a single recording session, followed by its GNSS-SDR
+    results (\\input of gnss_sdr/<name>/results.tex, written by gnss_sdr_report.py after the recording was
+    processed) when tex_dir has them."""
     g0 = session["channels"][0][1]["global"]
     cap0 = session["channels"][0][1]["captures"][0]
     start_str = session["datetime"].strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -222,6 +230,11 @@ def session_subsubsection_tex(session, record_number):
         f"captured starting {cap0['core:datetime']}.}}",
         r"\end{table}",
     ]
+    results = Path("gnss_sdr") / session["name"] / "results.tex"
+    if (tex_dir / results).exists():
+        lines += ["", f"\\input{{{results.as_posix()}}}"]
+    else:
+        lines += ["", r"\textit{GNSS-SDR processing of this recording is not available.}"]
     return "\n".join(lines)
 
 
@@ -230,7 +243,7 @@ _LATEX_ERROR_RE = re.compile(r"^! |LaTeX Error:|Emergency stop|Fatal error occur
 
 def compile_report_pdf(tex_path):
     """Run `make compile` in tex_path's directory (the report's own Makefile/toolchain:
-    pdflatex + biber + makeglossaries). Two things make this document's build quirky, both
+    pdflatex + biber + makeglossaries), twice so cross-references resolve. Two things make this document's build quirky, both
     handled here rather than by trusting make's bare exit code:
       - pdflatex's nonstopmode recovers from real LaTeX errors and still writes *a* PDF, so a
         fresh mtime alone doesn't prove success -- main.log is grepped for actual error markers.
@@ -243,7 +256,9 @@ def compile_report_pdf(tex_path):
     log_path = tex_path.with_suffix(".log")
     before_mtime = pdf_path.stat().st_mtime if pdf_path.exists() else None
 
-    result = subprocess.run(["make", "compile"], cwd=tex_path.parent, capture_output=True, text=True)
+    # twice: the first pass writes the cross-references (Section~\\ref{sec:gnss-sdr}, figures) the second resolves
+    for _ in range(2):
+        result = subprocess.run(["make", "compile"], cwd=tex_path.parent, capture_output=True, text=True)
 
     after_mtime = pdf_path.stat().st_mtime if pdf_path.exists() else None
     if after_mtime is None or after_mtime == before_mtime:
@@ -302,7 +317,7 @@ def append_to_report(sessions, tex_path, all_sessions):
         if date_str != current_day:
             blocks.append(f"\\subsection{{Records on {date_str}}}")
             current_day = date_str
-        blocks.append(session_subsubsection_tex(s, _day_ordinal(s, all_sessions)))
+        blocks.append(session_subsubsection_tex(s, _day_ordinal(s, all_sessions), tex_path.parent))
 
     marker = r"\end{document}"
     if marker not in text:

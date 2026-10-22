@@ -9,6 +9,7 @@ dependencies = [
     "h5py>=3.16.0",
     "loguru>=0.7.3",
     # Keep ABI parity with the system numpy that python3-uhd was built against
+    "matplotlib>=3.8",
     "numpy>=1.26,<2",
     "sigmf>=1.13.0",
 ]

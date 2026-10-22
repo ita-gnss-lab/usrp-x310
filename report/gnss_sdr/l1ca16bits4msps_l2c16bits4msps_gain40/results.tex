@@ -1,0 +1,217 @@
+\noindent\textbf{GNSS-SDR processing of this recording} (see Section~\ref{sec:gnss-sdr} for what each stage shows).
+
+Configuration: \texttt{l1ca16bits4msps\_l2c16bits4msps.conf}, bands L1 C/A, L2C.
+
+\paragraph{Signal source.} Raw I/Q samples of each channel, as recorded (0.5~s analysed, from 10~s into the recording).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/l1ca16bits4msps_l2c16bits4msps_gain40/source.pdf}
+  \caption{Signal source: power spectral density (the receiver passband over a flat thermal-noise floor; GNSS signals are below the noise, so only interference would stand out) and I/Q histograms (Gaussian noise, centred, not clipped).}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lcc}
+    \hline
+    \textbf{Channel} & \textbf{ch0} & \textbf{ch1} \\
+    \hline
+    Frequency [MHz] & 1575.42 & 1227.60 \\
+    Rate [MS/s] & 4 & 4 \\
+    Format & ci16\_le & ci16\_le \\
+    Gain [dB] & 25 & 40 \\
+    Std I / Q & 31.0 / 31.0 & 234.9 / 234.7 \\
+    Mean I / Q & -0.01 / 0.14 & -0.73 / 0.06 \\
+    Clipped [\%] & 0.000 & 0.000 \\
+    Lost samples & 0 & 0 \\
+    \hline
+  \end{tabular}}
+  \caption{Signal source: sample statistics per channel.}
+\end{table}
+
+\paragraph{Signal conditioner.} How each recorded channel is turned into the complex baseband stream the channels process.
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lcc}
+    \hline
+    \textbf{Channel} & \textbf{ch0 (L1 C/A)} & \textbf{ch1 (L2C)} \\
+    \hline
+    File format & ci16\_le & ci16\_le \\
+    Source item type & ishort & ishort \\
+    Data type adapter & Ishort\_To\_Complex & Ishort\_To\_Complex \\
+    Input filter & Pass\_Through & Pass\_Through \\
+    Resampling & Pass\_Through & Pass\_Through \\
+    Rate [MS/s] & 4 $\to$ 4 & 4 $\to$ 4 \\
+    \hline
+  \end{tabular}}
+  \caption{Signal conditioner: recorded format and rate to gnss-sdr's internal \texttt{gr\_complex} stream; both bands are read in lockstep by one \texttt{Multichannel\_File\_Signal\_Source}.}
+\end{table}
+
+\paragraph{Acquisition.} Two-dimensional search over code delay and Doppler (one channel per band dumped; the others behave alike).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/l1ca16bits4msps_l2c16bits4msps_gain40/acq_1C.pdf}
+  \caption{Acquisition, L1 C/A: delay--Doppler search of PRN 1; one sharp peak (test statistic 80 vs threshold 44) at 1750~Hz and 138.1~chips.}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lrrrr}
+    \hline
+    \textbf{Band} & \textbf{Attempts} & \textbf{Detections} & \textbf{Detected PRNs} & \textbf{Best statistic / threshold} \\
+    \hline
+    L1 C/A & 1 & 1 & 1 & 1.8 \\
+    L2C & \multicolumn{4}{l}{not dumped (search grid too large); acquired satellites: see the tracking table} \\
+    \hline
+  \end{tabular}}
+  \caption{Acquisition: search attempts of the dumped channel. Attempts on satellites that are not in view (or, for L5/L2C, do not broadcast that signal) are rejected below the threshold.}
+\end{table}
+
+\paragraph{Tracking.} Code (DLL) and carrier (PLL) loops per satellite.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/l1ca16bits4msps_l2c16bits4msps_gain40/tracking.pdf}
+  \caption{Tracking: carrier-to-noise density ratio and carrier Doppler per satellite, while phase-locked (smooth Doppler curves = loops following the real satellite motion).}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/l1ca16bits4msps_l2c16bits4msps_gain40/tracking_iq.pdf}
+  \caption{Tracking: prompt correlator outputs of the strongest satellite per band. Two tight clusters on one axis (the $\pm1$ data bits; GNSS-SDR's L5 tracking puts the data component on the Q axis) mean the PLL is phase-locked; a ring would mean it is not.}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lrrrrrr}
+    \hline
+    \textbf{Band} & \textbf{Ch.} & \textbf{PRN} & \textbf{Median C/N$_0$ [dB-Hz]} & \textbf{Phase-locked [\%]} & \textbf{Losses of lock} & \textbf{Tracked [s]} \\
+    \hline
+    L1 C/A & 0 & 1 & 48.0 & 94 & 0 & 558 \\
+    L1 C/A & 1 & 32 & 42.1 & 92 & 0 & 27 \\
+    L1 C/A & 2 & 31 & 48.5 & 95 & 0 & 530 \\
+    L1 C/A & 3 & 8 & 43.5 & 93 & 0 & 518 \\
+    L1 C/A & 4 & 2 & 49.6 & 96 & 0 & 528 \\
+    L1 C/A & 5 & 3 & 45.9 & 56 & 1 & 42 \\
+    L1 C/A & 6 & 28 & 47.1 & 95 & 0 & 537 \\
+    L1 C/A & 7 & 4 & 46.2 & 99 & 0 & 527 \\
+    L2C & 8 & 32 & 36.3 & 90 & 2 & 234 \\
+    L2C & 9 & 28 & 42.9 & 90 & 0 & 276 \\
+    L2C & 10 & 3 & 39.1 & 91 & 0 & 259 \\
+    L2C & 11 & 4 & 40.6 & 66 & 1 & 276 \\
+    L2C & 12 & 1 & 46.1 & 75 & 1 & 276 \\
+    L2C & 13 & 31 & 42.6 & 88 & 1 & 276 \\
+    L2C & 14 & 8 & 37.2 & 78 & 2 & 276 \\
+    \hline
+  \end{tabular}}
+  \caption{Tracking: per channel and satellite (phase-locked: carrier lock test $> 0.8$).}
+\end{table}
+
+\paragraph{Telemetry decoder.} Navigation-message decoding: bit/frame synchronization, parity/CRC, the ephemeris, and the satellite transmit time (time of week) of every measurement.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/l1ca16bits4msps_l2c16bits4msps_gain40/telemetry.pdf}
+  \caption{Telemetry decoder: per band and satellite, when the decoder delivered a valid transmit time (the first one comes after the first complete frame/message).}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lrrrrr}
+    \hline
+    \textbf{Band} & \textbf{PRN} & \textbf{Messages decoded} & \textbf{Ephemeris} & \textbf{First valid at [s]} & \textbf{TOW [s]} \\
+    \hline
+    L1 C/A & 1 & 45 & yes & 22.8 & 337692.0 \\
+    L1 C/A & 2 & 47 & yes & 22.8 & 337692.0 \\
+    L1 C/A & 3 & 43 & yes & 40.8 & 337710.0 \\
+    L1 C/A & 4 & 47 & yes & 22.8 & 337692.0 \\
+    L1 C/A & 8 & 47 & yes & 22.8 & 337692.0 \\
+    L1 C/A & 28 & 47 & yes & 22.8 & 337692.0 \\
+    L1 C/A & 31 & 45 & yes & 22.8 & 337692.0 \\
+    L1 C/A & 32 & 40 & yes & 64.8 & 337734.0 \\
+    L2C & 1 & 11 & yes & 34.4 & 0.0 \\
+    L2C & 3 & 12 & yes & 52.4 & 0.0 \\
+    L2C & 4 & 11 & yes & 34.9 & 0.0 \\
+    L2C & 8 & 8 & yes & 34.5 & 0.0 \\
+    L2C & 28 & 16 & yes & 34.7 & 0.0 \\
+    L2C & 31 & 9 & yes & 34.4 & 0.0 \\
+    L2C & 32 & 9 & yes & 76.5 & 0.0 \\
+    \hline
+  \end{tabular}}
+  \caption{Telemetry decoder: L1 C/A LNAV subframes and L2C/L5 CNAV messages decoded, ephemeris obtained, and the first valid time of week.}
+\end{table}
+
+\paragraph{Observables.} Pseudorange, carrier phase and Doppler of every channel at common receiver epochs.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/l1ca16bits4msps_l2c16bits4msps_gain40/observables.pdf}
+  \caption{Observables: epochs with a valid pseudorange per band and satellite, and the difference between the two bands' pseudoranges of the same satellite (a constant receiver inter-band bias, the same for every satellite, plus the slowly varying ionospheric delay).}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lrrrrr}
+    \hline
+    \textbf{PRN} & \textbf{Common epochs} & \textbf{of run [\%]} & \textbf{Mean [m]} & \textbf{Std [m]} & \textbf{Drift [m/s]} \\
+    \hline
+    1 & 8938 & 60 & -144.68 & 2.79 & 0.0023 \\
+    3 & 11342 & 76 & -139.49 & 5.26 & -0.0295 \\
+    4 & 8914 & 59 & -139.07 & 4.28 & 0.0266 \\
+    8 & 8314 & 55 & -125.38 & 6.19 & 0.0288 \\
+    28 & 12546 & 84 & -145.81 & 3.59 & 0.0055 \\
+    31 & 8934 & 60 & -144.99 & 3.57 & -0.0166 \\
+    32 & 8966 & 60 & -138.85 & 6.15 & 0.0363 \\
+    \hline
+  \end{tabular}}
+  \caption{Observables: P$_{\mathrm{L2C}}$ $-$ P$_{\mathrm{L1}}$ per satellite at common epochs (similar means = shared receiver bias; std = code noise of both bands).}
+\end{table}
+
+\paragraph{PVT.} Position from the pseudoranges and the decoded ephemeris, compared with the surveyed antenna position (-23.209433$^\circ$, -45.874875$^\circ$, 596.42~m).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/l1ca16bits4msps_l2c16bits4msps_gain40/pvt.pdf}
+  \caption{PVT: position error with respect to the surveyed antenna position. L1 C/A: gnss-sdr's own solution (broadcast ionosphere model). Iono-free: computed from gnss-sdr's observables and decoded ephemeris (gnss\_spp.py), removing the ionospheric delay with the second band (pseudoranges carrier-smoothed over 100~s).}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.45\linewidth]{gnss_sdr/l1ca16bits4msps_l2c16bits4msps_gain40/skyplot.pdf}
+  \caption{PVT: sky plot of the satellites in the dual-frequency solution (azimuth, elevation) during the recording.}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lcc}
+    \hline
+    \textbf{Solution} & \textbf{gnss-sdr, L1 C/A} & \textbf{iono-free L1 C/A + L2C} \\
+    \hline
+    Solutions & 13149 & 178 \\
+    Run with fix [\%] & 92 & 64 \\
+    Mean E / N / U [m] & -5.0 / -4.4 / 15.6 & -6.6 / 5.5 / 2.9 \\
+    Std E / N / U [m] & 1.7 / 2.6 / 4.5 & 5.7 / 8.7 / 16.3 \\
+    RMS 2-D [m] & 7.3 & 13.4 \\
+    RMS 3-D [m] & 17.8 & 21.4 \\
+    95\% horiz. [m] & 11.0 & 22.0 \\
+    \hline
+  \end{tabular}}
+  \caption{PVT: position error statistics with respect to the surveyed antenna (mean = accuracy, std = precision; \% of the run's seconds with a position; gnss-sdr outputs several solutions per second, the iono-free one is computed once per second).}
+\end{table}
+

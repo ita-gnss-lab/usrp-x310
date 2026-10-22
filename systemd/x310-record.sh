@@ -5,7 +5,9 @@
 #   1. only inside the [$WINDOW_START, $WINDOW_END) local-time window
 #   2. senses whether the USRP is reachable via `uhd_find_devices`; if not,
 #      exits silently and is sensed again at the next 15-min tick
-#   3. once found, records (each recording is x310usrp_record.py's default: 5 min)
+#   3. once found, records (each recording is x310usrp_record.py's default: 5 min), with the profile of the day's
+#      recording number (PROFILES below): the 1st is GPS L1 C/A (4 MS/s) + L5 (20 MS/s), 8-bit; the 2nd is
+#      GPS L1 C/A + L2C, both 4 MS/s, 16-bit
 #   4. at most $MAX_PER_DAY recordings per calendar day
 #   5. the second recording must start at least $MIN_GAP_SEC after the first
 #   6. records to a local staging directory, then bundles the finished recording
@@ -15,6 +17,10 @@
 #      lasts, so samples would drop; bundling happens after recording, when that
 #      no longer matters. If the NAS is not mounted, the archive is built in
 #      staging and moved by move_to_nas on a later run.
+#   7. processes the new recording with GNSS-SDR (run_gnss_sdr.sh --report, with the profile's config) and turns
+#      every receiver stage's outputs into figures/tables in report/gnss_sdr/<name>/ (gnss_sdr_report.py), which
+#      report_summary.py puts under the recording in the report. Never fatal: a failed processing leaves the
+#      recording itself untouched and is only logged
 #
 # All five are re-checked here regardless of the timer schedule, so a manual
 # `systemctl start`, a Persistent=true catch-up run, or a future timer edit
@@ -35,15 +41,37 @@ MIN_GAP_SEC=$((30 * 60))
 STAGING_DIR="$REPO_DIR/staging"
 NAS_MOUNT="/mnt/nas"
 NAS_DIR="$NAS_MOUNT/tapyu/recordings_usrp_x310_sjc"  # what $REPO_DIR/recordings links to
-# one 8-bit 5-min recording is ~14.4 GB: bundled on the NAS, staging only holds that one copy;
+# the larger profile (L1/L5 8-bit) is ~14.4 GB for 5 min: bundled on the NAS, staging only holds that one copy;
 # bundled locally (NAS not mounted), it briefly holds it twice
 MIN_FREE_GB_NAS=20
 MIN_FREE_GB_LOCAL=35
-# sc16 -> int8 divisor per channel (ch0 = L1, ch1 = L5), passed to --int8-div so the service records 8-bit
-# files (ci8); without it x310usrp_record.py would write the 16-bit samples as received (twice the size,
-# more than MIN_FREE_GB allows for). These put the noise std at ~30 of 127 at 25 dB gain, matching
-# RECOMMENDED_INT8_DIVS in x310usrp_record.py
-INT8_DIVS=(1 3)
+# Recording profile per recording of the day (index = recordings already made today): x310usrp_record.py options,
+# then the gnss-sdr config that processes it.
+#   0: GPS L1 C/A + L5, 8-bit (ci8): the default --freq/--iq-rate (L1 4 MS/s, L5 20 MS/s), --int8-div 1 3 puts the
+#      noise std at ~30 of 127 at 25 dB gain (RECOMMENDED_INT8_DIVS in x310usrp_record.py)
+#   1: GPS L1 C/A + L2C (1227.60 MHz), both 4 MS/s, 16-bit (ci16_le, no --int8-div): small enough at 4 MS/s
+#      (9.6 GB), and no divisor to tune
+PROFILES=("--freq 1575.42e6 1176.45e6 --gain 25 25 --int8-div 1 3"
+          "--freq 1575.42e6 1227.6e6 --gain 25 25")
+PROFILE_CONFS=("l1ca8bits4msps_l5_8bits20msps.conf" "l1ca16bits4msps_l2c16bits4msps.conf")
+PROFILE_NAMES=("GPS L1 C/A + L5, 8-bit" "GPS L1 C/A + L2C, 16-bit")
+REPORT_DIR="$REPO_DIR/report/gnss_sdr"
+
+# Process recording $1 (archive path) with gnss-sdr config $2, write its report figures/tables, and drop the bulky
+# per-stage dumps afterwards (tracking/telemetry dumps are ~1 GB per run; the figures keep what they showed).
+process_recording() {
+    local archive=$1 conf=$2 name
+    name=$(basename "$archive" .sigmf)
+    echo "processing $name with GNSS-SDR ($conf) ..."
+    "$REPO_DIR/run_gnss_sdr.sh" --conf "$REPO_DIR/$conf" --report --l1-pvt "$archive" > "$STATE_DIR/gnss-sdr-$name.log" 2>&1 \
+        || { echo "warning: GNSS-SDR processing of $name failed; see $STATE_DIR/gnss-sdr-$name.log"; return 0; }
+    "$UV_BIN" run gnss_sdr_report.py "$REPO_DIR/gnss_sdr_output/$name" --recording "$archive" \
+        --out "$REPORT_DIR/$name" --tex-root "$REPO_DIR/report" \
+        || { echo "warning: report figures of $name failed"; return 0; }
+    find "$REPO_DIR/gnss_sdr_output/$name" -maxdepth 1 \( -name 'trk_*' -o -name 'tlm_*' -o -name 'acq_*.mat' \
+        -o -name '*.dat' \) -delete
+    echo "GNSS-SDR results of $name in $REPORT_DIR/$name"
+}
 
 # Move every finished archive from staging to the NAS. rsync writes each file under a hidden
 # temporary name and renames it only once complete (so the NAS never shows a truncated .sigmf),
@@ -123,12 +151,13 @@ if (( free_gb < MIN_FREE_GB )); then
     exit 0
 fi
 
-# Record during 5 min
+# Record during 5 min, with today's profile
 cd "$REPO_DIR"
 name="x310_$(date -u +%Y%m%dT%H%M%SZ)" # builds a UTC timestamp string and prefixes it with x310_, e.g. x310_20261008T161530Z (year, month, day, literal T, hour, minute, second, literal Z (for Zulu/UTC), via -u to force UTC regardless of the system's local timezone).
-echo "USRP detected; recording ($((count + 1))/$MAX_PER_DAY today) as '$name' ..."
+read -ra profile_args <<< "${PROFILES[count]}"
+echo "USRP detected; recording ($((count + 1))/$MAX_PER_DAY today, ${PROFILE_NAMES[count]}) as '$name' ..."
 "$UV_BIN" run x310usrp_record.py --name "$name" --args "$USRP_ARGS" --staging-dir "$STAGING_DIR" \
-    --int8-div "${INT8_DIVS[@]}" "${archive_args[@]}"
+    "${profile_args[@]}" "${archive_args[@]}"
 
 # append the timestamp of this recording to the per-day log
 echo "$now_epoch" >> "$day_log"
@@ -137,3 +166,12 @@ find "$STATE_DIR" -maxdepth 1 -name 'day-*.log' -mtime +30 -delete
 
 # archives built locally on earlier runs (NAS down at the time) are moved over now
 move_to_nas
+
+# 7. process it with GNSS-SDR (wherever the archive ended up: the NAS, or staging if it was not mounted)
+archive="$NAS_DIR/$name.sigmf"
+[[ -f "$archive" ]] || archive="$STAGING_DIR/$name.sigmf"
+if [[ -f "$archive" ]]; then
+    process_recording "$archive" "${PROFILE_CONFS[count]}"
+else
+    echo "warning: archive of $name not found; not processed"
+fi

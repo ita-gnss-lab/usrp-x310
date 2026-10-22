@@ -1,7 +1,7 @@
 \documentclass{article}
 \input{default_preamble.tex}
 
-\usetikzlibrary{calendar}
+\usetikzlibrary{calendar,positioning,arrows.meta,calc}
 
 \makeatletter%
 \tikzoption{day headings}{\tikzstyle{day heading}=[#1]}
@@ -21,6 +21,12 @@
   }%
 ]
 \input{default_glossary_entries.tex}
+
+\makeatletter
+\let\old@part\part
+\renewcommand{\part}{\clearpage\old@part}
+\makeatother
+
 \title{USRP X310 Data Recording Report}
 \author[1]{Rubem Vasconcelos Pacelli}
 \affil[1]{Aeronautics Institute of Technology (ITA)}
@@ -33,27 +39,47 @@
 
 \abstract{This report describes the data recording process using the USRP X310 device. This reciver is placed in a fixed position in São José dos Campos, SP, Brazil, in the GPS/GNSS Laboratory at \gls{ita}\footnote{\url{https://github.com/ita-gnss-lab}}. The present report is updated as new recordings are made and new information is available.}
 
-\section{Overview of the recordings}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.65\linewidth]{gnss_antenna_location.png}
+  \caption{Location of the GNSS antenna.}
+  \label{fig:antenna-location}
+\end{figure}
+
+\newpage
+
+\tableofcontents
+
+\part{Recording overview}
+
+This part introduces an overview os the recordings presented in this report. It inclues the methodology used to record the data, the calendar of the recorded days, the configuration of the USRP X310, and the processing of the recordings with GNSS-SDR.
+
+\section{Methodology}
 
 The recording is computed automatically by a Linux service which is driven by the following guidelines:
 \begin{itemize}
     \item Everyday, the program will start within the time rage [4PM, 6PM]
     \item It will sense whether the USRP is detectable via \texttt{uhd\_find\_devices --args=``addr=192.168.10.2''}.
     \item If not found, it will exit silently and will sense again in intervals of 15 min.
-    \item Once found, a SigMF file will be created from the recording, with the interleaved I/Q samples + metadata, like number of channels (dual channel recording), frequency (L1 and L5), sampling rate, gain, sample type (signed 8-bit int for I and for Q, 2 bytes per complex sample), etc. Each channel has its own configuration (see the table below), so the metadata of each channel is reported separately.
+    \item Once found, two recordings are made, each with duration of 5 minutes (300 s). The first recording happens right after the USRP is detected, and the second recording is made 30 min after the first one. After that, no more recordings will be made for that day.
+    \item The two recordings of a day use different signal pairs:
     \begin{itemize}
-        \item Channel 0 (RX0): GPS L1 (1575.42~MHz), 4~MS/s, 25~dB of gain;
-        \item Channel 1 (RX1): GPS L5 (1176.45~MHz), 20~MS/s, 25~dB of gain.
+        \item First recording: channel 0 (RX0) GPS L1 C/A (1575.42~MHz), 4~MS/s; channel 1 (RX1) GPS L5 (1176.45~MHz), 20~MS/s; both 25~dB of gain, signed 8-bit I/Q (2 bytes per complex sample);
+        \item Second recording: channel 0 (RX0) GPS L1 C/A (1575.42~MHz); channel 1 (RX1) GPS L2C (1227.60~MHz); both 4~MS/s, 25~dB of gain, signed 16-bit I/Q (4 bytes per complex sample).
     \end{itemize}
-    Records made before 17/10/2026 used 2~MS/s in both channels; records made before 19/10/2026 used signed 16-bit I/Q (4 bytes per complex sample).
-    \item Each record lasts 5 minutes (300 s)
-    \item It will record a second time within the same range and 30 min after the first record, and then it will not record anymore for that day.
+    % TODO: REMOVE SUCH RECORDINGS ONCE WE HAVE ENOUGH DATA WITH THE NEW CONFIG Records made before 17/10/2026 used 2~MS/s in both channels; records made before 22/10/2026 were all GPS L1/L5.
+    \item For each recording a SigMF archive file is created, with the interleaved I/Q samples + metadata, like number of channels (dual channel recording), frequencies, sampling rate, gain, sample type, etc. Each channel has its own configuration, so the metadata of each channel is reported separately.
+    \item Each recording is processed by the GNSS-SDR software receiver right after it is made, and the outputs of every receiver stage are added under the recording in Section~\ref{sec:recordings} (see Section~\ref{sec:gnss-sdr}). % FIXME: maybe put this into one section?
     \item After 15 days of records from the last report. Rubem will send an automatic message to header of the Laboratory, Prof. Dr. Felix Antreich, via WhatsApp with the summarized information from all recorded metadata;
 \end{itemize}
 
+\section{Recording calendar}
+
+Table \ref{tab:recording-calendar} shows the days when recordings were made. The color of each day indicates how many recordings were made on that day: \textcolor{green}{green} means 2 recordings, \textcolor{blue}{blue} means 1 recording, and no color means no recording was made.
+
 \begin{table}[H]
-  \centering
-  \begin{tabular}{ccc}
+    \centering
+    \begin{tabular}{ccc}
     \begin{tikzpicture}[day xshift=3ex, day yshift=3ex]
     % month title and weekday-initials header, placed manually (one calendar
     % "row" apart each) since the built-in month label collides with a header row
@@ -64,35 +90,115 @@ The recording is computed automatically by a Linux service which is driven by th
         day headings=orange,
         day letter headings,
         execute before day scope={%
-          \ifdate{equals=2026-10-08}{%
+            \ifdate{equals=2026-10-08}{%
             \tikzset{every day/.append style={fill=blue!40, text=blue, shape=rectangle, inner sep=2pt}}%
-          }{}%
-          \ifdate{equals=2026-10-13}{%
+            }{}%
+            \ifdate{equals=2026-10-13}{%
             \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
-          }{}%
+            }{}%
         },
         execute after day scope={%
-          \ifdate{equals=2026-10-08}{%
+            \ifdate{equals=2026-10-08}{%
             \tikzset{every day/.style={anchor=base east}}%
-          }{}%
-          \ifdate{equals=2026-10-13}{%
+            }{}%
+            \ifdate{equals=2026-10-13}{%
             \tikzset{every day/.style={anchor=base east}}%
-          }{}%
+            }{}%
         }]
         ;
     %   if (Sunday) [red]
     %   if (Saturday) [red];
-  \end{tikzpicture}
-  &
-  % PLACEHOLDER
-  &
-  % PLACEHOLDER
-  \\[2ex]
-  \end{tabular}
-  \caption{Recording calendar. \textcolor{green}{Green}: 2 recordings made; \textcolor{blue}{blue}: 1 recording made. No color: no recording made.}
+    \end{tikzpicture}
+    &
+    % PLACEHOLDER
+    &
+    % PLACEHOLDER
+    \\[2ex]
+    \end{tabular}
+    \caption{Recording calendar.}
+    \label{tab:recording-calendar}
 \end{table}
 
-\section{Recording reports}
+\section{Validating the recordings with GNSS-SDR}\label{sec:gnss-sdr}
+
+A recording is only useful if a GNSS receiver can use it: find the satellites in it, track their signals, decode their navigation messages, and compute a position. To show that, every recording is processed with GNSS-SDR\footnote{\url{https://gnss-sdr.org}, v0.0.20.}, an open-source software-defined GNSS receiver, and the output of each of its stages is added to the report of that recording (Section~\ref{sec:recordings}). Figure~\ref{fig:gnss-sdr-chain} shows the data chain of GNSS-SDR. Each channel (one per satellite signal) runs its own acquisition, tracking and telemetry decoder; observables and PVT combine all of them.
+
+\begin{figure}[H]
+  \centering
+  \resizebox{\linewidth}{!}{%
+  \begin{tikzpicture}[node distance=0.35cm, every node/.style={font=\scriptsize, align=center},
+      block/.style={draw, rounded corners, minimum height=0.9cm, text width=1.45cm, fill=blue!8},
+      arrow/.style={-{Latex[length=1.5mm]}}]
+    \node[block] (src) {Signal\\source};
+    \node[block, below=of src] (cond) {Signal\\conditioner};
+    \node[block, below=of cond] (acq) {Acquisition};
+    \node[block, right=of acq] (trk) {Tracking};
+    \node[block, right=of trk] (tlm) {Telemetry\\decoder};
+    \node[block, below=of tlm] (obs) {Observables};
+    \node[block, below=of obs] (pvt) {PVT};
+    \foreach \a/\b in {src/cond, cond/acq, acq/trk, trk/tlm, tlm/obs, obs/pvt} \draw[arrow] (\a) -- (\b);
+    \draw[dashed, rounded corners] ($(acq.north west)+(-0.12,0.25)$) rectangle ($(tlm.south east)+(0.12,-0.25)$);
+    \node[right=0.3cm of tlm, text width=2.1cm, align=left] {one channel per satellite signal};
+  \end{tikzpicture}}
+  \caption{GNSS-SDR receiver chain.}
+  \label{fig:gnss-sdr-chain}
+\end{figure}
+
+\paragraph{Processing setup.} Both channels of a recording are read by one \texttt{Multichannel\_File\_Signal\_Source}, so the two bands advance in lockstep (with one independent source per band, one band runs ahead of the other and its measurements are discarded). That source reads both files at one rate: the 4~MS/s L1 C/A file of the L1/L5 recordings is upsampled 5 times (each sample repeated) to the 20~MS/s of L5 before GNSS-SDR. GNSS-SDR v0.0.20 computes its own position from L1 C/A only (broadcast ionosphere model): its dual-frequency solver ignores L2C altogether and was unstable with L5 on these recordings. The ionosphere-free, dual-frequency positioning is therefore computed outside GNSS-SDR's output, but using its observables and decoded ephemeris to generate our own single-point positioning (\texttt{gnss\_spp.py}).
+
+\subsection{Signal source}
+Reads the recorded I/Q samples (here, the SigMF data files) and delivers them as a stream, one per channel. GNSS-SDR has no output of its own here, so the recording itself is examined.
+\begin{itemize}
+  \item \textbf{Power spectral density} per channel: the shape of the receiver passband over a flat thermal-noise floor. GNSS signals are 15--20~dB below the noise, so they are invisible here; a narrow peak would be interference.
+  \item \textbf{I/Q histograms}: should be Gaussian, centred on zero, and far from the integer limits (no clipping).
+  \item \textbf{Table}: format, rate and gain per channel, I/Q standard deviation and mean, percentage of clipped values, and samples lost during the recording (overflows, zero-filled).
+\end{itemize}
+
+\subsection{Signal conditioner}
+Adapts the samples to what the channels process: converts the file format (signed 8- or 16-bit interleaved I/Q) to complex floating point (data type adapter), optionally filters (input filter) and resamples (resampler).
+\begin{itemize}
+  \item \textbf{Table} per channel: file format, data type adapter, filter, resampling, and rate before and after.
+\end{itemize}
+
+\subsection{Acquisition}
+Detects which satellites are present and gives a first, coarse estimate of each one's code delay and Doppler shift, by correlating the signal with the satellite's spreading code over a two-dimensional grid of delays and Doppler frequencies, and comparing the peak with a detection threshold (set by the probability of false alarm). With dual-frequency assistance, the second band (L5 or L2C) is only searched for satellites already tracked on L1, around their L1 Doppler scaled to the second frequency.
+\begin{itemize}
+  \item \textbf{Delay--Doppler map} (surface plot) of the strongest detection per band: a single sharp peak well above the floor.
+  \item \textbf{Table}: search attempts, detections and detected satellites, and the best test statistic relative to the threshold. Attempts on satellites that are not in view, or that do not broadcast that band (L5 is only on Block IIF and III satellites, L2C on IIR-M, IIF and III), are rejected.
+\end{itemize}
+
+\subsection{Tracking}
+Follows each detected signal with a delay-lock loop (code) and a phase-lock loop (carrier), producing every 1--20~ms the prompt correlator output (which carries the navigation data bits), the carrier-to-noise density ratio $C/N_0$, the Doppler, the code, and carrier phases.
+\begin{itemize}
+  \item \textbf{$C/N_0$ and Doppler versus time} per satellite and band: $C/N_0$ of roughly 35--50~dB-Hz for an open-sky antenna, and smooth Doppler curves following the satellite motion.
+  \item \textbf{Prompt I/Q scatter} of the strongest satellite per band: with the carrier phase locked, the energy sits on the in-phase axis in two clusters (the $\pm1$ data bits); without phase lock it would be a ring.
+  \item \textbf{Table} per satellite: median $C/N_0$, percentage of time phase-locked, losses of lock and time tracked.
+\end{itemize}
+
+\subsection{Telemetry decoder}
+Synchronizes to the navigation-message bits and frames, checks their parity/CRC (Cyclic Redundancy Check), decodes the ephemeris (orbit and satellite clock), and time-stamps every measurement with the satellite's transmit time (time of week). L1 C/A carries the legacy LNAV message (6-s subframes); L2C and L5 carry CNAV (12-s and 6-s messages).
+\begin{itemize}
+  \item \textbf{Timeline} per band and satellite of when a valid transmit time was available.
+  \item \textbf{Table}: messages decoded, ephemeris obtained, and when the first valid time of week came.
+\end{itemize}
+
+\subsection{Observables}
+Aligns all channels on common receiver epochs and forms, for each satellite and band, the pseudorange (from transmit and receive times), the accumulated carrier phase and the Doppler. These are the measurements a positioning algorithm uses; GNSS-SDR also writes them to a RINEX observation file.
+\begin{itemize}
+  \item \textbf{Availability} of valid pseudoranges per band and satellite over the recording.
+  \item \textbf{Second band minus L1 pseudorange} per satellite: the same constant for every satellite (the receiver's inter-band hardware bias) plus the slowly varying, satellite-dependent ionospheric delay difference (metres). It proves that both bands measure the same satellites consistently.
+  \item \textbf{Table} per satellite: common epochs, mean, standard deviation and drift of that difference.
+\end{itemize}
+
+\subsection{PVT}
+Computes position, velocity and receiver clock (PVT) from the pseudoranges and the decoded ephemeris. The antenna position was surveyed: $-23.209433^\circ$, $-45.874875^\circ$, 596.42~m (WGS-84), so the errors below are true errors, not just scatter.
+\begin{itemize}
+  \item \textbf{Horizontal error scatter and east/north/up error versus time} for GNSS-SDR's L1 C/A solution and for the dual-frequency ionosphere-free solution. Single-frequency single-point positioning is expected to stay within a few metres horizontally and ${\sim}10$~m vertically; the iono-free combination removes the ionospheric bias but amplifies the code noise about three times.
+  \item \textbf{Sky plot} of the satellites used.
+  \item \textbf{Table}: mean error (accuracy), standard deviation (precision), 2-D and 3-D RMS, and 95\% horizontal error.
+\end{itemize}
+
+\section{Recording reports}\label{sec:recordings}
 
 
 
