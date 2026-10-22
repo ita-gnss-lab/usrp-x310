@@ -35,6 +35,7 @@ Raw I/Q samples of each channel analysed within the window [10, 10.5]~s after th
 
 \subsubsection{Signal conditioner}
 
+
 \begin{table}[H]
   \centering
   \footnotesize
@@ -80,6 +81,7 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
 
 \subsubsection{Tracking}
 
+
 \begin{figure}[H]
   \centering
   \includegraphics[width=1.0\linewidth]{gnss_sdr/l1ca16bits4msps_l2c16bits4msps_gain40/tracking.png}
@@ -100,27 +102,28 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
     \hline
     \textbf{Band} & \textbf{Ch.} & \textbf{PRN} & \textbf{Median C/N$_0$ [dB-Hz]} & \textbf{Phase-locked [\%]} & \textbf{Losses of lock} & \textbf{Tracked [s]} \\
     \hline
-    L1 C/A & 0 & 1 & 48.0 & 94 & 0 & 558 \\
-    L1 C/A & 1 & 32 & 42.1 & 92 & 0 & 27 \\
-    L1 C/A & 2 & 31 & 48.5 & 95 & 0 & 530 \\
-    L1 C/A & 3 & 8 & 43.5 & 93 & 0 & 518 \\
-    L1 C/A & 4 & 2 & 49.6 & 96 & 0 & 528 \\
-    L1 C/A & 5 & 3 & 45.9 & 56 & 1 & 42 \\
-    L1 C/A & 6 & 28 & 47.1 & 95 & 0 & 537 \\
-    L1 C/A & 7 & 4 & 46.2 & 99 & 0 & 527 \\
-    L2C & 8 & 32 & 36.3 & 90 & 2 & 234 \\
-    L2C & 9 & 28 & 42.9 & 90 & 0 & 276 \\
-    L2C & 10 & 3 & 39.1 & 91 & 0 & 259 \\
-    L2C & 11 & 4 & 40.6 & 66 & 1 & 276 \\
-    L2C & 12 & 1 & 46.1 & 75 & 1 & 276 \\
-    L2C & 13 & 31 & 42.6 & 88 & 1 & 276 \\
-    L2C & 14 & 8 & 37.2 & 78 & 2 & 276 \\
+    L1 C/A & 0 & 1 & 48.0 & 95 & 0 & 558 \\
+    L1 C/A & 1 & 26 & 41.8 & 96 & 0 & 541 \\
+    L1 C/A & 2 & 31 & 48.4 & 96 & 0 & 520 \\
+    L1 C/A & 3 & 8 & 43.4 & 93 & 0 & 506 \\
+    L1 C/A & 4 & 2 & 49.6 & 96 & 0 & 518 \\
+    L1 C/A & 5 & 3 & 46.1 & 94 & 0 & 517 \\
+    L1 C/A & 6 & 28 & 47.1 & 95 & 0 & 529 \\
+    L1 C/A & 7 & 4 & 46.2 & 100 & 0 & 516 \\
+    L2C & 8 & 1 & 42.7 & 70 & 2 & 274 \\
+    L2C & 9 & 31 & 42.7 & 90 & 0 & 274 \\
+    L2C & 10 & 8 & 33.6 & 42 & 3 & 273 \\
+    L2C & 11 & 4 & 40.7 & 91 & 0 & 273 \\
+    L2C & 12 & 3 & 35.3 & 20 & 4 & 273 \\
+    L2C & 13 & 26 & 34.5 & 86 & 0 & 265 \\
+    L2C & 14 & 28 & 41.4 & 19 & 3 & 273 \\
     \hline
   \end{tabular}}
   \caption{Tracking: per channel and satellite (phase-locked: carrier lock test $> 0.8$).}
 \end{table}
 
 \subsubsection{Telemetry decoder}
+
 
 \begin{figure}[H]
   \centering
@@ -136,21 +139,21 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
     \hline
     \textbf{Band} & \textbf{PRN} & \textbf{Messages decoded} & \textbf{Ephemeris} & \textbf{First valid at [s]} & \textbf{TOW [s]} \\
     \hline
-    L1 C/A & 1 & 45 & yes & 22.8 & 337692.0 \\
-    L1 C/A & 2 & 47 & yes & 22.8 & 337692.0 \\
-    L1 C/A & 3 & 43 & yes & 40.8 & 337710.0 \\
-    L1 C/A & 4 & 47 & yes & 22.8 & 337692.0 \\
+    L1 C/A & 1 & 46 & yes & 22.8 & 337692.0 \\
+    L1 C/A & 2 & 46 & yes & 22.8 & 337692.0 \\
+    L1 C/A & 3 & 45 & yes & 22.8 & 337692.0 \\
+    L1 C/A & 4 & 43 & yes & 22.8 & 337692.0 \\
     L1 C/A & 8 & 47 & yes & 22.8 & 337692.0 \\
-    L1 C/A & 28 & 47 & yes & 22.8 & 337692.0 \\
-    L1 C/A & 31 & 45 & yes & 22.8 & 337692.0 \\
-    L1 C/A & 32 & 40 & yes & 64.8 & 337734.0 \\
-    L2C & 1 & 11 & yes & 34.4 & 0.0 \\
-    L2C & 3 & 12 & yes & 52.4 & 0.0 \\
-    L2C & 4 & 11 & yes & 34.9 & 0.0 \\
-    L2C & 8 & 8 & yes & 34.5 & 0.0 \\
-    L2C & 28 & 16 & yes & 34.7 & 0.0 \\
-    L2C & 31 & 9 & yes & 34.4 & 0.0 \\
-    L2C & 32 & 9 & yes & 76.5 & 0.0 \\
+    L1 C/A & 26 & 45 & yes & 34.8 & 337704.0 \\
+    L1 C/A & 28 & 43 & yes & 22.8 & 337692.0 \\
+    L1 C/A & 31 & 47 & yes & 22.8 & 337692.0 \\
+    L2C & 1 & 6 & yes & 37.0 & 0.0 \\
+    L2C & 3 & 1 & no & 37.3 & 0.0 \\
+    L2C & 4 & 15 & yes & 37.6 & 0.0 \\
+    L2C & 8 & 2 & yes & 37.1 & 0.0 \\
+    L2C & 26 & 12 & yes & 46.4 & 0.0 \\
+    L2C & 28 & 1 & no & 37.4 & 0.0 \\
+    L2C & 31 & 12 & yes & 37.1 & 0.0 \\
     \hline
   \end{tabular}}
   \caption{Telemetry decoder: L1 C/A LNAV subframes and L2C/L5 CNAV messages decoded, ephemeris obtained, and the first valid time of week.}
@@ -173,13 +176,13 @@ Pseudorange, carrier phase and Doppler of every channel at common receiver epoch
     \hline
     \textbf{PRN} & \textbf{Common epochs} & \textbf{of run [\%]} & \textbf{Mean [m]} & \textbf{Std [m]} & \textbf{Drift [m/s]} \\
     \hline
-    1 & 8938 & 60 & -144.68 & 2.79 & 0.0023 \\
-    3 & 11342 & 76 & -139.49 & 5.26 & -0.0295 \\
-    4 & 8914 & 59 & -139.07 & 4.28 & 0.0266 \\
-    8 & 8314 & 55 & -125.38 & 6.19 & 0.0288 \\
-    28 & 12546 & 84 & -145.81 & 3.59 & 0.0055 \\
-    31 & 8934 & 60 & -144.99 & 3.57 & -0.0166 \\
-    32 & 8966 & 60 & -138.85 & 6.15 & 0.0363 \\
+    1 & 4732 & 32 & -144.35 & 3.13 & -0.0455 \\
+    3 & 1110 & 7 & -138.97 & 6.09 & 0.4556 \\
+    4 & 11956 & 80 & -138.55 & 4.09 & 0.0006 \\
+    8 & 1740 & 12 & -120.53 & 6.57 & 0.2375 \\
+    26 & 11324 & 76 & -137.94 & 6.31 & -0.0046 \\
+    28 & 508 & 3 & -146.62 & 2.76 & -0.6129 \\
+    31 & 11918 & 80 & -145.04 & 3.36 & -0.0058 \\
     \hline
   \end{tabular}}
   \caption{Observables: P$_{\mathrm{L2C}}$ $-$ P$_{\mathrm{L1}}$ per satellite at common epochs (similar means = shared receiver bias; std = code noise of both bands).}
@@ -208,13 +211,13 @@ Position from the pseudoranges and the decoded ephemeris, compared with the surv
     \hline
     \textbf{Solution} & \textbf{gnss-sdr, L1 C/A} & \textbf{iono-free L1 C/A + L2C} \\
     \hline
-    Solutions & 13149 & 178 \\
-    Run with fix [\%] & 92 & 64 \\
-    Mean E / N / U [m] & -5.0 / -4.4 / 15.6 & -6.6 / 5.5 / 2.9 \\
-    Std E / N / U [m] & 1.7 / 2.6 / 4.5 & 5.7 / 8.7 / 16.3 \\
-    RMS 2-D [m] & 7.3 & 13.4 \\
-    RMS 3-D [m] & 17.8 & 21.4 \\
-    95\% horiz. [m] & 11.0 & 22.0 \\
+    Solutions & 13149 & 35 \\
+    Run with fix [\%] & 92 & 13 \\
+    Mean E / N / U [m] & -5.0 / -4.5 / 15.5 & -6.4 / 17.2 / 14.0 \\
+    Std E / N / U [m] & 1.7 / 2.6 / 4.7 & 5.4 / 14.6 / 29.9 \\
+    RMS 2-D [m] & 7.4 & 24.1 \\
+    RMS 3-D [m] & 17.8 & 40.9 \\
+    95\% horiz. [m] & 11.1 & 45.4 \\
     \hline
   \end{tabular}}
   \caption{PVT: position error statistics with respect to the surveyed antenna (mean = accuracy, std = precision; \% of the run's seconds with a position; gnss-sdr outputs several solutions per second, the iono-free one is computed once per second).}

@@ -35,6 +35,7 @@ Raw I/Q samples of each channel analysed within the window [10, 10.5]~s after th
 
 \subsubsection{Signal conditioner}
 
+
 \begin{table}[H]
   \centering
   \footnotesize
@@ -60,7 +61,7 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
 \begin{figure}[H]
   \centering
   \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261022T193000Z/acq_1C.png}
-  \caption{Acquisition, L1 C/A: delay--Doppler search of PRN 31; one sharp peak (test statistic 64 vs threshold 44) at 2250~Hz and 623.0~chips.}
+  \caption{Acquisition, L1 C/A: delay--Doppler search of PRN 23; one sharp peak (test statistic 50 vs threshold 44) at -2250~Hz and 18.7~chips.}
 \end{figure}
 
 \begin{table}[H]
@@ -71,7 +72,7 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
     \hline
     \textbf{Band} & \textbf{Attempts} & \textbf{Detections} & \textbf{Detected PRNs} & \textbf{Best statistic / threshold} \\
     \hline
-    L1 C/A & 44 & 1 & 31 & 1.4 \\
+    L1 C/A & 3 & 1 & 23 & 1.1 \\
     L2C & \multicolumn{4}{l}{not dumped (search grid too large); acquired satellites: see the tracking table} \\
     \hline
   \end{tabular}}
@@ -79,6 +80,7 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
 \end{table}
 
 \subsubsection{Tracking}
+
 
 \begin{figure}[H]
   \centering
@@ -100,27 +102,28 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
     \hline
     \textbf{Band} & \textbf{Ch.} & \textbf{PRN} & \textbf{Median C/N$_0$ [dB-Hz]} & \textbf{Phase-locked [\%]} & \textbf{Losses of lock} & \textbf{Tracked [s]} \\
     \hline
-    L1 C/A & 0 & 31 & 42.3 & 86 & 0 & 532 \\
-    L1 C/A & 1 & 8 & 47.4 & 94 & 0 & 29 \\
+    L1 C/A & 0 & 23 & 43.6 & 94 & 0 & 549 \\
+    L1 C/A & 1 & 31 & 42.3 & 93 & 0 & 502 \\
     L1 C/A & 2 & 10 & 46.9 & 100 & 0 & 29 \\
-    L1 C/A & 3 & 32 & 51.4 & 90 & 0 & 30 \\
-    L1 C/A & 4 & 2 & 45.8 & 100 & 0 & 527 \\
-    L1 C/A & 5 & 27 & 48.8 & 96 & 0 & 525 \\
-    L1 C/A & 6 & 28 & 45.0 & 95 & 0 & 539 \\
-    L1 C/A & 7 & 23 & 43.6 & 95 & 0 & 559 \\
-    L2C & 8 & 31 & 35.7 & 90 & 0 & 275 \\
-    L2C & 9 & 8 & 41.1 & 100 & 0 & 275 \\
-    L2C & 10 & 10 & 40.3 & 89 & 0 & 275 \\
-    L2C & 11 & 32 & 44.8 & 100 & 0 & 275 \\
-    L2C & 13 & 27 & 43.3 & 93 & 0 & 274 \\
-    L2C & 14 & 23 & 32.0 & 36 & 2 & 274 \\
-    L2C & 15 & 28 & 40.0 & 91 & 0 & 274 \\
+    L1 C/A & 3 & 8 & 47.5 & 93 & 0 & 29 \\
+    L1 C/A & 4 & 32 & 51.3 & 95 & 0 & 30 \\
+    L1 C/A & 5 & 27 & 48.7 & 95 & 0 & 530 \\
+    L1 C/A & 6 & 28 & 45.0 & 94 & 0 & 543 \\
+    L1 C/A & 7 & 2 & 45.7 & 100 & 0 & 533 \\
+    L2C & 8 & 23 & 32.7 & 92 & 0 & 274 \\
+    L2C & 9 & 10 & 40.3 & 91 & 0 & 274 \\
+    L2C & 10 & 8 & 41.1 & 92 & 0 & 274 \\
+    L2C & 11 & 32 & 40.8 & 52 & 2 & 274 \\
+    L2C & 12 & 27 & 43.3 & 92 & 0 & 274 \\
+    L2C & 13 & 28 & 40.0 & 90 & 0 & 274 \\
+    L2C & 14 & 31 & 35.8 & 100 & 0 & 269 \\
     \hline
   \end{tabular}}
   \caption{Tracking: per channel and satellite (phase-locked: carrier lock test $> 0.8$).}
 \end{table}
 
 \subsubsection{Telemetry decoder}
+
 
 \begin{figure}[H]
   \centering
@@ -140,17 +143,17 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
     L1 C/A & 8 & 47 & yes & 23.0 & 415848.0 \\
     L1 C/A & 10 & 44 & yes & 23.0 & 415848.0 \\
     L1 C/A & 23 & 47 & yes & 23.0 & 415848.0 \\
-    L1 C/A & 27 & 46 & yes & 23.0 & 415848.0 \\
+    L1 C/A & 27 & 43 & yes & 23.0 & 415848.0 \\
     L1 C/A & 28 & 47 & yes & 23.0 & 415848.0 \\
-    L1 C/A & 31 & 47 & yes & 23.0 & 415848.0 \\
-    L1 C/A & 32 & 47 & yes & 23.0 & 415848.0 \\
-    L2C & 8 & 13 & yes & 36.2 & 0.0 \\
-    L2C & 10 & 13 & yes & 36.3 & 0.0 \\
-    L2C & 23 & 6 & yes & 36.7 & 0.0 \\
-    L2C & 27 & 13 & yes & 36.5 & 0.0 \\
-    L2C & 28 & 15 & yes & 36.6 & 0.0 \\
-    L2C & 31 & 13 & yes & 36.2 & 0.0 \\
-    L2C & 32 & 13 & yes & 36.3 & 0.0 \\
+    L1 C/A & 31 & 46 & yes & 29.0 & 415854.0 \\
+    L1 C/A & 32 & 44 & yes & 23.0 & 415848.0 \\
+    L2C & 8 & 13 & yes & 37.1 & 0.0 \\
+    L2C & 10 & 13 & yes & 37.0 & 0.0 \\
+    L2C & 23 & 15 & yes & 37.0 & 0.0 \\
+    L2C & 27 & 13 & yes & 37.2 & 0.0 \\
+    L2C & 28 & 15 & yes & 37.3 & 0.0 \\
+    L2C & 31 & 13 & yes & 41.5 & 0.0 \\
+    L2C & 32 & 5 & yes & 37.2 & 0.0 \\
     \hline
   \end{tabular}}
   \caption{Telemetry decoder: L1 C/A LNAV subframes and L2C/L5 CNAV messages decoded, ephemeris obtained, and the first valid time of week.}
@@ -173,13 +176,13 @@ Pseudorange, carrier phase and Doppler of every channel at common receiver epoch
     \hline
     \textbf{PRN} & \textbf{Common epochs} & \textbf{of run [\%]} & \textbf{Mean [m]} & \textbf{Std [m]} & \textbf{Drift [m/s]} \\
     \hline
-    8 & 11896 & 79 & -138.80 & 4.23 & 0.0221 \\
-    10 & 11956 & 80 & -139.41 & 4.63 & 0.0071 \\
-    23 & 4727 & 32 & -137.33 & 8.64 & -0.0145 \\
-    27 & 11946 & 80 & -139.79 & 3.32 & -0.0114 \\
-    28 & 11940 & 80 & -140.52 & 4.99 & 0.0103 \\
-    31 & 11899 & 79 & -135.43 & 8.52 & -0.0627 \\
-    32 & 11954 & 80 & -141.31 & 3.30 & 0.0182 \\
+    8 & 11916 & 80 & -138.80 & 4.22 & 0.0219 \\
+    10 & 11920 & 80 & -139.38 & 4.60 & 0.0063 \\
+    23 & 11921 & 80 & -138.23 & 7.93 & -0.0050 \\
+    27 & 11910 & 79 & -139.78 & 3.33 & -0.0115 \\
+    28 & 11906 & 79 & -140.55 & 4.96 & 0.0113 \\
+    31 & 11953 & 80 & -135.37 & 8.55 & -0.0633 \\
+    32 & 4724 & 32 & -139.80 & 2.42 & -0.0338 \\
     \hline
   \end{tabular}}
   \caption{Observables: P$_{\mathrm{L2C}}$ $-$ P$_{\mathrm{L1}}$ per satellite at common epochs (similar means = shared receiver bias; std = code noise of both bands).}
@@ -208,13 +211,13 @@ Position from the pseudoranges and the decoded ephemeris, compared with the surv
     \hline
     \textbf{Solution} & \textbf{gnss-sdr, L1 C/A} & \textbf{iono-free L1 C/A + L2C} \\
     \hline
-    Solutions & 13139 & 239 \\
-    Run with fix [\%] & 92 & 87 \\
-    Mean E / N / U [m] & -6.3 / 2.7 / 10.1 & -7.4 / 4.7 / 8.6 \\
-    Std E / N / U [m] & 1.8 / 1.9 / 4.7 & 8.0 / 7.8 / 21.7 \\
-    RMS 2-D [m] & 7.3 & 14.2 \\
-    RMS 3-D [m] & 13.4 & 27.3 \\
-    95\% horiz. [m] & 10.1 & 23.7 \\
+    Solutions & 13139 & 238 \\
+    Run with fix [\%] & 92 & 86 \\
+    Mean E / N / U [m] & -6.3 / 2.8 / 10.0 & -6.9 / 4.4 / 10.4 \\
+    Std E / N / U [m] & 1.8 / 1.9 / 4.6 & 8.8 / 7.7 / 25.7 \\
+    RMS 2-D [m] & 7.4 & 14.2 \\
+    RMS 3-D [m] & 13.3 & 31.2 \\
+    95\% horiz. [m] & 10.2 & 25.0 \\
     \hline
   \end{tabular}}
   \caption{PVT: position error statistics with respect to the surveyed antenna (mean = accuracy, std = precision; \% of the run's seconds with a position; gnss-sdr outputs several solutions per second, the iono-free one is computed once per second).}
