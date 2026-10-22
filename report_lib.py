@@ -127,6 +127,9 @@ def session_subsection_tex(session, record_number, tex_dir=Path("report")):
         f"Daughterboard & {daughterboard_row} \\\\",
         f"Recorder & {span}{{{tex_escape(g0['core:recorder'])}}} \\\\",
     ]
+    conf_file = tex_dir / "gnss_sdr" / session["name"] / "gnss_sdr_conf.txt"  # written by gnss_sdr_out2tex.py
+    if conf_file.exists():
+        rows.append(f"GNSS-SDR configuration & {span}{{\\texttt{{{tex_escape(conf_file.read_text().strip())}}}}} \\\\")
 
     lines = [
         f"\\subsection{{{ordinal(record_number)} record}}",

@@ -1,7 +1,7 @@
 """Turn one recording's GNSS-SDR run (run_gnss_sdr.sh --report) into figures and tables for report/main.tex.
 
 One block of evidence per receiver stage, in the order of the report's "Validating the recordings with GNSS-SDR"
-section, written to <out>/results.tex (\\input under the recording's metadata table) plus vector PDF figures:
+section, written to <out>/results.tex (\\input under the recording's metadata table) plus PNG figures:
   1. Signal source        PSD + I/Q histogram per channel (from the raw recording); table of sample statistics
   2. Signal conditioner   table: recorded format/rate -> what gnss-sdr processes (format, rate, upsampling)
   3. Acquisition          delay-Doppler map of the strongest detection per band; table of attempts/detections
@@ -91,25 +91,29 @@ def band_of_channel(bands, ch):
     return None
 
 
+CONF_NAME_FILE = "gnss_sdr_conf.txt"  # name of the gnss-sdr configuration the recording was processed with
+FIG_DPI = 200  # raster figures: vector PDFs of plots with ~10^4-10^5 points made the report too heavy to render
+
+
 def fig_path(out, name):
-    return out / f"{name}.pdf"
+    return out / f"{name}.png"
 
 
 def savefig(fig, out, name, tex):
-    fig.savefig(fig_path(out, name))
+    fig.savefig(fig_path(out, name), dpi=FIG_DPI)
     plt.close(fig)
-    rel = (out / f"{name}.pdf").relative_to(tex.root).as_posix()
-    return rel
+    return fig_path(out, name).relative_to(tex.root).as_posix()
 
 
 class Tex:
-    """Collects results.tex: paragraphs, figures and tables."""
+    """Collects results.tex: one subsubsection per stage, with its figures and tables."""
 
     def __init__(self, root, name):
         self.root, self.name, self.lines = root, name, []
 
     def para(self, title, text=""):
-        self.lines += [f"\\paragraph{{{title}}} {text}", ""]
+        """One receiver stage: a \\subsubsection under the recording's \\subsection (title without its final dot)."""
+        self.lines += [f"\\subsubsection{{{title.rstrip('.')}}}", text, ""]
 
     def text(self, text):
         self.lines += [text, ""]
@@ -122,22 +126,24 @@ class Tex:
                        f"  \\includegraphics[width={width}\\linewidth]{{{rel}}}",
                        f"  \\caption{{{caption}}}", r"\end{figure}", ""]
 
-    def table(self, header, rows, caption, align=None):
+    def table(self, header, rows, caption, align=None, span_rows=()):
+        """span_rows: (label, value) rows whose value spans every data column, placed right under the header."""
         align = align or "l" + "r" * (len(header) - 1)
         # shrunk to the text width only when wider than it (\\width is the tabular's natural width)
         self.lines += [r"\begin{table}[H]", r"  \centering", r"  \footnotesize",
                        r"  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%",
                        f"  \\begin{{tabular}}{{{align}}}", r"    \hline",
                        "    " + " & ".join(f"\\textbf{{{h}}}" for h in header) + r" \\", r"    \hline"]
+        self.lines += [f"    {label} & \\multicolumn{{{len(header) - 1}}}{{c}}{{{value}}} \\\\" for label, value in span_rows]
         self.lines += ["    " + " & ".join(str(c) for c in row) + r" \\" for row in rows]
         self.lines += [r"    \hline", r"  \end{tabular}}", f"  \\caption{{{caption}}}", r"\end{table}", ""]
 
-    def table_t(self, header, rows, caption):
+    def table_t(self, header, rows, caption, span_rows=()):
         """table() transposed: one row per quantity (header[1:]), one column per item (rows' first cells), for
         tables with few items but many quantities, which would be too wide the other way round."""
         new_header = [header[0]] + [str(r[0]) for r in rows]
         new_rows = [[header[i]] + [r[i] for r in rows] for i in range(1, len(header))]
-        self.table(new_header, new_rows, caption, align="l" + "c" * len(rows))
+        self.table(new_header, new_rows, caption, align="l" + "c" * len(rows), span_rows=span_rows)
 
     def write(self, path):
         path.write_text("\n".join(self.lines) + "\n")
@@ -599,8 +605,6 @@ def main():
     out = args.out or args.tex_root / "gnss_sdr" / name
     out.mkdir(parents=True, exist_ok=True)
     tex = Tex(args.tex_root, name)
-    tex.text(r"\noindent\textbf{GNSS-SDR processing of this recording} (see Section~\ref{sec:gnss-sdr} for what "
-             r"each stage shows).")
     metas = read_archive_meta(archive)
     try:
         conf_name, values = conf_values(run_dir)
@@ -609,9 +613,9 @@ def main():
         tex.write(out / "results.tex")
         return
     bands = bands_of(values)
+    # the recording's metadata table in main.tex shows it (report_lib.session_subsection_tex reads this file)
+    (out / CONF_NAME_FILE).write_text(conf_name + "\n")
     fs = float(values.get("GNSS-SDR.internal_fs_sps", 0))
-    tex.text(f"Configuration: \\texttt{{{tex_escape(conf_name)}}}, bands "
-             + ", ".join(BAND_LABEL[b[0]] for b in bands) + ".")
     stage_source(tex, out, archive, metas, bands)
     stage_conditioner(tex, values, metas, bands)
     stage_acquisition(tex, out, run_dir, bands, fs)
