@@ -18,9 +18,10 @@
 #      no longer matters. If the NAS is not mounted, the archive is built in
 #      staging and moved by move_to_nas on a later run.
 #   7. processes the new recording with GNSS-SDR (run_gnss_sdr.sh --report, with the profile's config) and turns
-#      every receiver stage's outputs into figures/tables in report/gnss_sdr/<name>/ (gnss_sdr_report.py), which
-#      report_summary.py puts under the recording in the report. Never fatal: a failed processing leaves the
-#      recording itself untouched and is only logged
+#      every receiver stage's outputs into figures/tables in report/gnss_sdr/<name>/ (gnss_sdr_out2tex.py)
+#   8. adds the recording (metadata table + those GNSS-SDR results) to report/main.tex and recompiles the PDF
+#      (update_report.py); the 15-day x310-report.service only sends that PDF by WhatsApp
+#   Steps 7-8 are never fatal: a failure leaves the recording itself untouched and is only logged
 #
 # All five are re-checked here regardless of the timer schedule, so a manual
 # `systemctl start`, a Persistent=true catch-up run, or a future timer edit
@@ -65,7 +66,7 @@ process_recording() {
     echo "processing $name with GNSS-SDR ($conf) ..."
     "$REPO_DIR/run_gnss_sdr.sh" --conf "$REPO_DIR/$conf" --report --l1-pvt "$archive" > "$STATE_DIR/gnss-sdr-$name.log" 2>&1 \
         || { echo "warning: GNSS-SDR processing of $name failed; see $STATE_DIR/gnss-sdr-$name.log"; return 0; }
-    "$UV_BIN" run gnss_sdr_report.py "$REPO_DIR/gnss_sdr_output/$name" --recording "$archive" \
+    "$UV_BIN" run gnss_sdr_out2tex.py "$REPO_DIR/gnss_sdr_output/$name" --recording "$archive" \
         --out "$REPORT_DIR/$name" --tex-root "$REPO_DIR/report" \
         || { echo "warning: report figures of $name failed"; return 0; }
     find "$REPO_DIR/gnss_sdr_output/$name" -maxdepth 1 \( -name 'trk_*' -o -name 'tlm_*' -o -name 'acq_*.mat' \
@@ -172,6 +173,9 @@ archive="$NAS_DIR/$name.sigmf"
 [[ -f "$archive" ]] || archive="$STAGING_DIR/$name.sigmf"
 if [[ -f "$archive" ]]; then
     process_recording "$archive" "${PROFILE_CONFS[count]}"
+    # 8. add it to the report and recompile (with its GNSS-SDR results if step 7 produced them)
+    "$UV_BIN" run update_report.py "$archive" --recordings-dir "$NAS_DIR" --tex-path "$REPO_DIR/report/main.tex" \
+        || echo "warning: adding $name to the report failed"
 else
     echo "warning: archive of $name not found; not processed"
 fi

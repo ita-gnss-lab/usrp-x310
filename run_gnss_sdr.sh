@@ -15,7 +15,7 @@
 #                       (SignalSource.filename0/1); this script fills in the file names and sample formats
 #   --dump-observables  also save every channel's observables (pseudorange, carrier phase, Doppler, ...) per
 #                       epoch to gnss_sdr_output/<name>/observables.mat, for compare_pseudoranges.py
-#   --report            also dump what gnss_sdr_report.py needs to show every receiver stage: the acquisition grids of
+#   --report            also dump what gnss_sdr_out2tex.py needs to show every receiver stage: the acquisition grids of
 #                       the first channel of each band, every channel's tracking and navigation-decoder outputs, the
 #                       observables and the PVT solutions (implies --dump-observables)
 #   --l1-pvt            still track both bands, but compute the position from L1 only (PVT.iono_model=Broadcast)
@@ -204,7 +204,7 @@ if $report; then
     done
     lines+=("PVT.dump=true" "PVT.dump_filename=pvt.dat" "PVT.dump_mat=true")
     printf '%s\n' "${lines[@]}" >> "$run_conf"
-    echo "dumping every stage's outputs for gnss_sdr_report.py to $out_dir"
+    echo "dumping every stage's outputs for gnss_sdr_out2tex.py to $out_dir"
 fi
 echo "sample format: ch0 ${datatype[0]} (${ITEM_TYPE[${datatype[0]}]}), ch1 ${datatype[1]} (${ITEM_TYPE[${datatype[1]}]})"
 echo "running gnss-sdr, outputs in $out_dir ..."

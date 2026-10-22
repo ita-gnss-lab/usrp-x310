@@ -6,7 +6,7 @@ runs next to gnss-sdr (started by run_gnss_sdr.sh --report) and, every few secon
   1. appends every new file's scalars (band, PRN, detected?, Doppler, delay, test statistic, threshold, ...) to
      acq_summary.csv, so the report still sees every attempt;
   2. deletes the grid file, except the --keep strongest DETECTED ones per band (largest test statistic), which
-     gnss_sdr_report.py plots as delay-Doppler maps.
+     gnss_sdr_out2tex.py plots as delay-Doppler maps.
 It stops after the process --pid exits, with a last pass over whatever is left.
 
 Example:

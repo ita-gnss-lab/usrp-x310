@@ -13,7 +13,7 @@ Every element is optional: a missing GNSS-SDR output becomes a "not produced" li
 the report always compiles and shows how far the receiver got.
 
 Example:
-  uv run gnss_sdr_report.py gnss_sdr_output/x310_20261021T193000Z --recording recordings/x310_20261021T193000Z.sigmf
+  uv run gnss_sdr_out2tex.py gnss_sdr_output/x310_20261021T193000Z --recording recordings/x310_20261021T193000Z.sigmf
 """
 
 import argparse

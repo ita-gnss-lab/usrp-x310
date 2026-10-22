@@ -54,18 +54,6 @@ Configuration: \texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}, bands L1 C/A, L5.
 
 \paragraph{Acquisition.} Two-dimensional search over code delay and Doppler (one channel per band dumped; the others behave alike).
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261021T193000Z/acq_1C.pdf}
-  \caption{Acquisition, L1 C/A: delay--Doppler search of PRN 23; one sharp peak (test statistic 64 vs threshold 47) at -2000~Hz and 859.8~chips.}
-\end{figure}
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261021T193000Z/acq_L5.pdf}
-  \caption{Acquisition, L5: delay--Doppler search of PRN 8; one sharp peak (test statistic 99 vs threshold 49) at 924~Hz and 9223.9~chips.}
-\end{figure}
-
 \begin{table}[H]
   \centering
   \footnotesize
@@ -83,81 +71,11 @@ Configuration: \texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}, bands L1 C/A, L5.
 
 \paragraph{Tracking.} Code (DLL) and carrier (PLL) loops per satellite.
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261021T193000Z/tracking.pdf}
-  \caption{Tracking: carrier-to-noise density ratio and carrier Doppler per satellite, while phase-locked (smooth Doppler curves = loops following the real satellite motion).}
-\end{figure}
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261021T193000Z/tracking_iq.pdf}
-  \caption{Tracking: prompt correlator outputs of the strongest satellite per band. Two tight clusters on one axis (the $\pm1$ data bits; GNSS-SDR's L5 tracking puts the data component on the Q axis) mean the PLL is phase-locked; a ring would mean it is not.}
-\end{figure}
-
-\begin{table}[H]
-  \centering
-  \footnotesize
-  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
-  \begin{tabular}{lrrrrrr}
-    \hline
-    \textbf{Band} & \textbf{Ch.} & \textbf{PRN} & \textbf{Median C/N$_0$ [dB-Hz]} & \textbf{Phase-locked [\%]} & \textbf{Losses of lock} & \textbf{Tracked [s]} \\
-    \hline
-    L1 C/A & 0 & 23 & 43.3 & 89 & 0 & 526 \\
-    L1 C/A & 1 & 8 & 47.7 & 100 & 0 & 519 \\
-    L1 C/A & 2 & 10 & 47.7 & 98 & 0 & 532 \\
-    L1 C/A & 3 & 32 & 52.6 & 96 & 0 & 30 \\
-    L1 C/A & 4 & 2 & 45.6 & 61 & 1 & 41 \\
-    L1 C/A & 5 & 27 & 49.8 & 94 & 0 & 30 \\
-    L1 C/A & 6 & 28 & 43.2 & 89 & 0 & 513 \\
-    L1 C/A & 7 & 31 & 44.5 & 95 & 0 & 545 \\
-    L5 & 8 & 8 & 43.3 & 68 & 0 & 375 \\
-    L5 & 9 & 10 & 49.4 & 70 & 0 & 375 \\
-    L5 & 10 & 23 & 43.2 & 80 & 1 & 325 \\
-    L5 & 10 & 32 & 28.9 & 0 & 1 & 16 \\
-    L5 & 11 & 27 & 47.7 & 68 & 0 & 375 \\
-    L5 & 12 & 28 & 47.5 & 68 & 0 & 370 \\
-    L5 & 13 & 32 & 29.1 & 0 & 1 & 16 \\
-    L5 & 14 & 32 & 49.2 & 42 & 1 & 48 \\
-    \hline
-  \end{tabular}}
-  \caption{Tracking: per channel and satellite (phase-locked: carrier lock test $> 0.8$).}
-\end{table}
+\textit{Not produced: tracking dumps.}
 
 \paragraph{Telemetry decoder.} Navigation-message decoding: bit/frame synchronization, parity/CRC, the ephemeris, and the satellite transmit time (time of week) of every measurement.
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261021T193000Z/telemetry.pdf}
-  \caption{Telemetry decoder: per band and satellite, when the decoder delivered a valid transmit time (the first one comes after the first complete frame/message).}
-\end{figure}
-
-\begin{table}[H]
-  \centering
-  \footnotesize
-  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
-  \begin{tabular}{lrrrrr}
-    \hline
-    \textbf{Band} & \textbf{PRN} & \textbf{Messages decoded} & \textbf{Ephemeris} & \textbf{First valid at [s]} & \textbf{TOW [s]} \\
-    \hline
-    L1 C/A & 2 & 45 & yes & 35.0 & 329460.0 \\
-    L1 C/A & 8 & 47 & yes & 23.0 & 329448.0 \\
-    L1 C/A & 10 & 47 & yes & 23.0 & 329448.0 \\
-    L1 C/A & 23 & 46 & yes & 29.0 & 329454.0 \\
-    L1 C/A & 27 & 47 & yes & 23.0 & 329448.0 \\
-    L1 C/A & 28 & 47 & yes & 23.0 & 329448.0 \\
-    L1 C/A & 31 & 47 & yes & 23.0 & 329448.0 \\
-    L1 C/A & 32 & 47 & yes & 23.0 & 329448.0 \\
-    L5 & 8 & 26 & yes & 47.8 & 329472.8 \\
-    L5 & 10 & 26 & yes & 47.8 & 329472.8 \\
-    L5 & 23 & 25 & yes & 96.2 & 329521.2 \\
-    L5 & 27 & 26 & yes & 47.8 & 329472.8 \\
-    L5 & 28 & 31 & yes & 48.0 & 329473.0 \\
-    L5 & 32 & 20 & yes & 95.9 & 329520.9 \\
-    \hline
-  \end{tabular}}
-  \caption{Telemetry decoder: L1 C/A LNAV subframes and L2C/L5 CNAV messages decoded, ephemeris obtained, and the first valid time of week.}
-\end{table}
+\textit{Not produced: telemetry decoder dumps.}
 
 \paragraph{Observables.} Pseudorange, carrier phase and Doppler of every channel at common receiver epochs.
 

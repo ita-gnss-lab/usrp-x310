@@ -2,7 +2,7 @@
 
 gnss-sdr v0.0.20 computes a dual-frequency position only for L1+L5, and its iono-free solver kept failing and
 resetting the observables on our recordings; for L1+L2C it never uses L2C at all. This module computes the
-position itself from what gnss-sdr already produced and that we trust (stage by stage, see gnss_sdr_report.py):
+position itself from what gnss-sdr already produced and that we trust (stage by stage, see gnss_sdr_out2tex.py):
   - observables.mat: per epoch and channel, the pseudorange, PRN and validity flag, RX_time (receiver time, GPS TOW s)
   - gps_ephemeris.xml: the LNAV broadcast ephemeris and satellite clock decoded by the L1 C/A telemetry decoder
 

@@ -1,5 +1,5 @@
-"""Send a periodic WhatsApp report of every recording since the last report,
-compiled as a PDF from report/main.tex, plus a short text digest.
+"""Send a periodic WhatsApp report of every recording since the last report:
+a short text digest plus the report PDF (report/main.pdf).
 
 Scans --out-dir for every <name>.sigmf Archive (x310usrp_record.py's output:
 one Archive per session, bundling a Collection + each channel's Recording)
@@ -12,15 +12,14 @@ a state file, defaulting to 15 days back on first run), and:
      OpenWA gateway (https://github.com/rmyndharis/OpenWA). See
      notify_whatsapp.py for a single-recording notification instead of this
      periodic aggregate.
-  2. appends one \\subsection{Records on dd/mm/yyyy} per day (holding one
-     \\subsubsection{First/Second/... record} per session, each a metadata
-     table) into --tex-path's "Recording reports" section (just before
-     \\end{document}).
-  3. compiles --tex-path (via `make compile` in its directory, reusing the
-     report's own Makefile/build toolchain) and sends the resulting PDF as
-     a WhatsApp document to the same recipient.
-Steps 2-3 (and the marker advance) are skipped together on --dry-run, so
-the report file and the last-report marker never drift apart.
+  2. sends the report PDF as a WhatsApp document to the same recipient. The report itself is kept up to date by
+     the recording service, not here: after every recording, systemd/x310-record.sh processes it with GNSS-SDR
+     and runs update_report.py, which appends the recording (metadata table + GNSS-SDR results) to --tex-path
+     and recompiles it. This script only recompiles when the PDF is missing or older than --tex-path.
+Both sends (and the marker advance) are skipped on --dry-run.
+
+The LaTeX helpers below (load_sessions, append_to_report, update_calendar_table, compile_report_pdf) are shared
+with update_report.py.
 
 Intended to run every 15 days via x310-report.timer (see systemd/), driven
 by the same WhatsApp session as notify_whatsapp.py -- i.e. it sends from
@@ -64,7 +63,7 @@ def parse_args():
                    help="ISO datetime to report from instead of the stored marker (for manual runs)")
     p.add_argument("--dry-run", action="store_true", help="print the report but don't send it or advance the marker")
     p.add_argument("--tex-path", type=Path, default=Path("report/main.tex"),
-                   help="LaTeX report to append per-recording subsections to (default: report/main.tex)")
+                   help="LaTeX report whose PDF is sent (default: report/main.tex)")
     return p.parse_args()
 
 
@@ -165,7 +164,7 @@ def tex_escape(text):
 
 def session_subsubsection_tex(session, record_number, tex_dir=Path("report")):
     """Build one '\\subsubsection{...}' + metadata table for a single recording session, followed by its GNSS-SDR
-    results (\\input of gnss_sdr/<name>/results.tex, written by gnss_sdr_report.py after the recording was
+    results (\\input of gnss_sdr/<name>/results.tex, written by gnss_sdr_out2tex.py after the recording was
     processed) when tex_dir has them."""
     g0 = session["channels"][0][1]["global"]
     cap0 = session["channels"][0][1]["captures"][0]
@@ -462,11 +461,11 @@ def main():
     result = send_whatsapp(args.base_url, api_key, session, to, body)
     print(f"sent: {result}")
 
-    append_to_report(selected, args.tex_path, sessions)
     if selected:
-        update_calendar_table(args.tex_path, sessions)
-        pdf_path = compile_report_pdf(args.tex_path)
-        print(f"compiled {pdf_path}")
+        pdf_path = args.tex_path.with_suffix(".pdf")
+        if not pdf_path.exists() or pdf_path.stat().st_mtime < args.tex_path.stat().st_mtime:
+            pdf_path = compile_report_pdf(args.tex_path)  # e.g. main.tex edited by hand since the last recording
+            print(f"compiled {pdf_path}")
         doc_result = send_document(
             args.base_url, api_key, session, to, pdf_path,
             filename="USRP_X310_Report.pdf",
