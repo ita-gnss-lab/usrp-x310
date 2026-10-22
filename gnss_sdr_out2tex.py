@@ -31,9 +31,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
-from compare_pseudoranges import channel_counts, load_observables  # noqa: E402
+from compare_pseudoranges import load_observables  # noqa: E402
 from gnss_spp import enu_errors, load_lnav_ephemeris, solve  # noqa: E402
-from report_summary import tex_escape  # noqa: E402
+from report_lib import tex_escape  # noqa: E402
 
 ANTENNA_LLH = (-23.209433, -45.874875, 596.42)  # surveyed antenna position (lat, lon [deg], h [m]), GNSS lab ITA
 BAND_LABEL = {"1C": "L1 C/A", "2S": "L2C", "L5": "L5"}

@@ -12,4 +12,4 @@ StateDirectory=x310-recorder
 WorkingDirectory=/home/tapyu/git/usrp-x310
 # OPENWA_API_KEY, OPENWA_SESSION, REPORT_WHATSAPP_TO (lab head's number)
 EnvironmentFile=/home/tapyu/git/usrp-x310/.env
-ExecStart=/home/tapyu/.local/bin/uv run report_summary.py
+ExecStart=/home/tapyu/.local/bin/uv run send_whatsapp_msg.py

@@ -1,13 +1,13 @@
 """Add one recording to the LaTeX report and recompile it, right after the recording (and its GNSS-SDR processing).
 
 Called by systemd/x310-record.sh after every recording. For the given <name>.sigmf archive it:
-  1. appends the recording to report/main.tex's "Recording reports" section: a \\subsection{Records on dd/mm/yyyy}
-     when it is the day's first recording, then a \\subsubsection{First/Second record} with its metadata table and,
+  1. appends the recording to report/main.tex's "Recording reports" part: a \\section{Records on dd/mm/yyyy}
+     when it is the day's first recording, then a \\subsection{First/Second record} with its metadata table and,
      when gnss_sdr_out2tex.py has written them, its GNSS-SDR results (report/gnss_sdr/<name>/results.tex);
   2. refreshes the recording calendar table from every archive in --recordings-dir;
   3. compiles the report (make compile, twice) into report/main.pdf.
 A recording already in the report is not added twice (step 1 is skipped, steps 2-3 still run). The periodic
-WhatsApp message (report_summary.py) then only sends the compiled PDF.
+WhatsApp message (send_whatsapp_msg.py) then only sends the compiled PDF.
 
 --missing adds, oldest first, every recording of --recordings-dir that is not in the report yet: a backfill for
 recordings made before this script ran after each recording (until 22/10/2026 the report was only extended every
@@ -21,7 +21,7 @@ Examples:
 import argparse
 from pathlib import Path
 
-from report_summary import append_to_report, compile_report_pdf, load_sessions, tex_escape, update_calendar_table
+from report_lib import append_to_report, compile_report_pdf, load_sessions, tex_escape, update_calendar_table
 
 
 def parse_args():
@@ -58,7 +58,7 @@ def main():
         if in_report(args.tex_path, name):
             print(f"{name} is already in {args.tex_path}")
             new = []
-    for session in new:  # one at a time: each may start a new day subsection
+    for session in new:  # one at a time: each may start a new day section
         append_to_report([session], args.tex_path, sessions)
     update_calendar_table(args.tex_path, sessions)
     print(f"compiled {compile_report_pdf(args.tex_path)}")

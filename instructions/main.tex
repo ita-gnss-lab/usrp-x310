@@ -196,7 +196,7 @@ Thus, one physical TwinRX daughterboard contains two receive front-ends/channels
 
 \section{Python environment setup}
 
-Recording is done with a small set of Python scripts (\texttt{x310usrp\_record.py}, \texttt{check\_levels.py}, \texttt{report\_summary.py}) in the project repository, managed with \texttt{uv}. UHD's Python bindings come from the \texttt{python3-uhd} apt package and only work with the system Python~3.12, so the \texttt{uv} virtual environment must be created with system site-packages enabled rather than a fully isolated one:
+Recording is done with a small set of Python scripts (\texttt{x310usrp\_record.py}, \texttt{check\_levels.py}, \texttt{send\_whatsapp\_msg.py}) in the project repository, managed with \texttt{uv}. UHD's Python bindings come from the \texttt{python3-uhd} apt package and only work with the system Python~3.12, so the \texttt{uv} virtual environment must be created with system site-packages enabled rather than a fully isolated one:
 
 \begin{lstlisting}[language=bash]
 cd usrp-x310
@@ -340,9 +340,9 @@ OPENWA_SESSION=<session uuid from above>
 REPORT_WHATSAPP_TO=<recipient phone number, e.g. +55...>
 \end{lstlisting}
 
-\subsection{\texttt{report\_summary.py}}
+\subsection{\texttt{send\_whatsapp\_msg.py}}
 
-On each run, \texttt{report\_summary.py} scans \texttt{recordings/} for every \texttt{.sigmf} archive newer than the last report (tracked in a state file, defaulting to 15~days back on first run); for those, it
+On each run, \texttt{send\_whatsapp\_msg.py} scans \texttt{recordings/} for every \texttt{.sigmf} archive newer than the last report (tracked in a state file, defaulting to 15~days back on first run); for those, it
 
 \begin{enumerate}[leftmargin=*]
     \item sends a short WhatsApp text digest -- recording counts, data volume, lost samples, and which days (if any) had no recording;
@@ -353,7 +353,7 @@ On each run, \texttt{report\_summary.py} scans \texttt{recordings/} for every \t
 Run manually, loading the secrets from \texttt{.env}:
 
 \begin{lstlisting}[language=bash]
-uv run --env-file .env report_summary.py
+uv run --env-file .env send_whatsapp_msg.py
 \end{lstlisting}
 
 \subsection{Automating the report}

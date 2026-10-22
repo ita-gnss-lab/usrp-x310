@@ -69,7 +69,7 @@ The recording is computed automatically by a Linux service which is driven by th
     \end{itemize}
     % TODO: REMOVE SUCH RECORDINGS ONCE WE HAVE ENOUGH DATA WITH THE NEW CONFIG Records made before 17/10/2026 used 2~MS/s in both channels; records made before 22/10/2026 were all GPS L1/L5.
     \item For each recording a SigMF archive file is created, with the interleaved I/Q samples + metadata, like number of channels (dual channel recording), frequencies, sampling rate, gain, sample type, etc. Each channel has its own configuration, so the metadata of each channel is reported separately.
-    \item Each recording is processed by the GNSS-SDR software receiver right after it is made, and the outputs of every receiver stage are added under the recording in Section~\ref{sec:recordings} (see Section~\ref{sec:gnss-sdr}). % FIXME: maybe put this into one section?
+    \item Each recording is processed by the GNSS-SDR software receiver right after it is made, and the outputs of every receiver stage are added under the recording in Section~\ref{part:recordings} (see Section~\ref{sec:gnss-sdr}). % FIXME: maybe put this into one section?
     \item After 15 days of records from the last report. Rubem will send an automatic message to header of the Laboratory, Prof. Dr. Felix Antreich, via WhatsApp with the summarized information from all recorded metadata;
 \end{itemize}
 
@@ -78,8 +78,8 @@ The recording is computed automatically by a Linux service which is driven by th
 Table \ref{tab:recording-calendar} shows the days when recordings were made. The color of each day indicates how many recordings were made on that day: \textcolor{green}{green} means 2 recordings, \textcolor{blue}{blue} means 1 recording, and no color means no recording was made.
 
 \begin{table}[H]
-    \centering
-    \begin{tabular}{ccc}
+  \centering
+  \begin{tabular}{ccc}
     \begin{tikzpicture}[day xshift=3ex, day yshift=3ex]
     % month title and weekday-initials header, placed manually (one calendar
     % "row" apart each) since the built-in month label collides with a header row
@@ -90,38 +90,80 @@ Table \ref{tab:recording-calendar} shows the days when recordings were made. The
         day headings=orange,
         day letter headings,
         execute before day scope={%
-            \ifdate{equals=2026-10-08}{%
+          \ifdate{equals=2026-10-08}{%
             \tikzset{every day/.append style={fill=blue!40, text=blue, shape=rectangle, inner sep=2pt}}%
-            }{}%
-            \ifdate{equals=2026-10-13}{%
+          }{}%
+          \ifdate{equals=2026-10-13}{%
             \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
-            }{}%
+          }{}%
+          \ifdate{equals=2026-10-14}{%
+            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
+          \ifdate{equals=2026-10-15}{%
+            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
+          \ifdate{equals=2026-10-16}{%
+            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
+          \ifdate{equals=2026-10-19}{%
+            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
+          \ifdate{equals=2026-10-20}{%
+            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
+          \ifdate{equals=2026-10-21}{%
+            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
+          \ifdate{equals=2026-10-22}{%
+            \tikzset{every day/.append style={fill=blue!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
         },
         execute after day scope={%
-            \ifdate{equals=2026-10-08}{%
+          \ifdate{equals=2026-10-08}{%
             \tikzset{every day/.style={anchor=base east}}%
-            }{}%
-            \ifdate{equals=2026-10-13}{%
+          }{}%
+          \ifdate{equals=2026-10-13}{%
             \tikzset{every day/.style={anchor=base east}}%
-            }{}%
+          }{}%
+          \ifdate{equals=2026-10-14}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+          \ifdate{equals=2026-10-15}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+          \ifdate{equals=2026-10-16}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+          \ifdate{equals=2026-10-19}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+          \ifdate{equals=2026-10-20}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+          \ifdate{equals=2026-10-21}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+          \ifdate{equals=2026-10-22}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
         }]
         ;
     %   if (Sunday) [red]
     %   if (Saturday) [red];
-    \end{tikzpicture}
-    &
-    % PLACEHOLDER
-    &
-    % PLACEHOLDER
-    \\[2ex]
-    \end{tabular}
-    \caption{Recording calendar.}
-    \label{tab:recording-calendar}
+  \end{tikzpicture}
+  &
+  % PLACEHOLDER
+  &
+  % PLACEHOLDER
+  \\[2ex]
+  \end{tabular}
+  \caption{Recording calendar.}
+  \label{tab:recording-calendar}
 \end{table}
 
 \section{Validating the recordings with GNSS-SDR}\label{sec:gnss-sdr}
 
-A recording is only useful if a GNSS receiver can use it: find the satellites in it, track their signals, decode their navigation messages, and compute a position. To show that, every recording is processed with GNSS-SDR\footnote{\url{https://gnss-sdr.org}, v0.0.20.}, an open-source software-defined GNSS receiver, and the output of each of its stages is added to the report of that recording (Section~\ref{sec:recordings}). Figure~\ref{fig:gnss-sdr-chain} shows the data chain of GNSS-SDR. Each channel (one per satellite signal) runs its own acquisition, tracking and telemetry decoder; observables and PVT combine all of them.
+A recording is only useful if a GNSS receiver can use it: find the satellites in it, track their signals, decode their navigation messages, and compute a position. To show that, every recording is processed with GNSS-SDR\footnote{\url{https://gnss-sdr.org}, v0.0.20.}, an open-source software-defined GNSS receiver, and the output of each of its stages is added to the report of that recording (Section~\ref{part:recordings}). Figure~\ref{fig:gnss-sdr-chain} shows the data chain of GNSS-SDR. Each channel (one per satellite signal) runs its own acquisition, tracking and telemetry decoder; observables and PVT combine all of them.
 
 \begin{figure}[H]
   \centering
@@ -198,13 +240,14 @@ Computes position, velocity and receiver clock (PVT) from the pseudoranges and t
   \item \textbf{Table}: mean error (accuracy), standard deviation (precision), 2-D and 3-D RMS, and 95\% horizontal error.
 \end{itemize}
 
-\section{Recording reports}\label{sec:recordings}
+\newpage
 
+\part{Recording reports}
+\label{part:recordings}
 
+\section{Records on 08/10/2026}
 
-\subsection{Records on 08/10/2026}
-
-\subsubsection{First record}
+\subsection{First record}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -245,9 +288,9 @@ Computes position, velocity and receiver clock (PVT) from the pseudoranges and t
   \caption{Metadata for recording \texttt{x310\_20261008T222630Z}, captured starting 2026-10-08T22:26:37.215640Z.}
 \end{table}
 
-\subsection{Records on 13/10/2026}
+\section{Records on 13/10/2026}
 
-\subsubsection{First record}
+\subsection{First record}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -288,7 +331,7 @@ Computes position, velocity and receiver clock (PVT) from the pseudoranges and t
   \caption{Metadata for recording \texttt{x310\_20261013T215749Z}, captured starting 2026-10-13T21:57:56.746726Z.}
 \end{table}
 
-\subsubsection{Second record}
+\subsection{Second record}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -328,5 +371,51 @@ Computes position, velocity and receiver clock (PVT) from the pseudoranges and t
   \end{tabular}
   \caption{Metadata for recording \texttt{x310\_20261013T220835Z}, captured starting 2026-10-13T22:08:41.589855Z.}
 \end{table}
+
+
+\section{Records on 22/10/2026}
+
+\subsection{First record}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{Parameter} & \textbf{Channel 0} & \textbf{Channel 1} \\
+    \hline
+    Start time & \multicolumn{2}{c|}{2026-10-22 19:00:06 UTC} \\
+    \hline
+    Duration & 300.0 s & 300.0 s \\
+    \hline
+    Sample rate & 4.000 MS/s & 20.000 MS/s \\
+    \hline
+    Sample type & \multicolumn{2}{c|}{signed complex 8-bit samples (I+Q), converted on the host from the X310's sc16} \\
+    \hline
+    Frequency & 1575.420 MHz & 1176.450 MHz \\
+    \hline
+    Gain & 25.0 dB & 25.0 dB \\
+    \hline
+    Antenna & RX1 & RX2 \\
+    \hline
+    File size & 2400.0 MB & 12000.0 MB \\
+    \hline
+    Samples written & 1,200,000,000 & 6,000,000,000 \\
+    \hline
+    Lost samples & 2912 & 14924 \\
+    \hline
+    Clock source & \multicolumn{2}{c|}{external} \\
+    \hline
+    Time source & \multicolumn{2}{c|}{internal} \\
+    \hline
+    Motherboard & \multicolumn{2}{c|}{USRP X310} \\
+    \hline
+    Daughterboard & TwinRX RX0 & TwinRX RX1 \\
+    \hline
+    Recorder & \multicolumn{2}{c|}{UHD Python API} \\
+    \hline
+  \end{tabular}
+  \caption{Metadata for recording \texttt{x310\_20261022T190000Z}, captured starting 2026-10-22T19:00:06.973177Z.}
+\end{table}
+
+\input{gnss_sdr/x310_20261022T190000Z/results.tex}
 
 \end{document}

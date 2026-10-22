@@ -1,70 +1,19 @@
-"""Send a periodic WhatsApp report of every recording since the last report:
-a short text digest plus the report PDF (report/main.pdf).
+"""LaTeX side of the report (report/main.tex): read the recordings' metadata, append each recording to the
+"Recording reports" part, refresh the recording calendar, and compile the PDF.
 
-Scans --out-dir for every <name>.sigmf Archive (x310usrp_record.py's output:
-one Archive per session, bundling a Collection + each channel's Recording)
-and groups each one into a session (one per x310usrp_record.py run,
-multiple channels each -- a dual-channel recording counts as ONE
-session/record). Keeps only the ones newer than the last report (tracked in
-a state file, defaulting to 15 days back on first run), and:
-  1. sends a short text summary -- counts, data volume, dropped samples,
-     and which days (if any) had no recording -- through a self-hosted
-     OpenWA gateway (https://github.com/rmyndharis/OpenWA). See
-     notify_whatsapp.py for a single-recording notification instead of this
-     periodic aggregate.
-  2. sends the report PDF as a WhatsApp document to the same recipient. The report itself is kept up to date by
-     the recording service, not here: after every recording, systemd/x310-record.sh processes it with GNSS-SDR
-     and runs update_report.py, which appends the recording (metadata table + GNSS-SDR results) to --tex-path
-     and recompiles it. This script only recompiles when the PDF is missing or older than --tex-path.
-Both sends (and the marker advance) are skipped on --dry-run.
-
-The LaTeX helpers below (load_sessions, append_to_report, update_calendar_table, compile_report_pdf) are shared
-with update_report.py.
-
-Intended to run every 15 days via x310-report.timer (see systemd/), driven
-by the same WhatsApp session as notify_whatsapp.py -- i.e. it sends from
-whichever number was paired into $OPENWA_SESSION.
-
-Example:
-  export OPENWA_API_KEY=xxxxxxxx
-  export OPENWA_SESSION=<uuid>
-  export REPORT_WHATSAPP_TO=+55831234567   # the recipient, e.g. the lab head
-  uv run report_summary.py
+Used by update_report.py (after every recording, from systemd/x310-record.sh), by gnss_sdr_out2tex.py
+(tex_escape) and by send_whatsapp_msg.py (load_sessions, compile_report_pdf for the 15-day WhatsApp message).
 """
 
-import argparse
 import json
-import os
 import re
 import subprocess
 import tarfile
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from pathlib import Path
 
-from whatsapp import send_document, send_whatsapp
-
-DEFAULT_LOOKBACK_DAYS = 15
 ORDINALS = ["First", "Second", "Third", "Fourth", "Fifth"]  # per-day record count never exceeds 2 in practice
-
-
-def parse_args():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--out-dir", type=Path, default=Path("recordings"), help="directory x310usrp_record.py wrote into")
-    p.add_argument("--to", default=None, help="recipient phone number (default: $REPORT_WHATSAPP_TO)")
-    p.add_argument("--base-url", default="http://localhost:2785", help="OpenWA server URL")
-    p.add_argument("--session", default=None,
-                   help="OpenWA session UUID, not its label (default: $OPENWA_SESSION)")
-    p.add_argument("--api-key", default=None, help="OpenWA API key (default: $OPENWA_API_KEY)")
-    p.add_argument("--state-dir", type=Path, default=None,
-                   help="where the last-report marker lives (default: $STATE_DIRECTORY or "
-                        "/var/lib/x310-recorder)")
-    p.add_argument("--since", default=None,
-                   help="ISO datetime to report from instead of the stored marker (for manual runs)")
-    p.add_argument("--dry-run", action="store_true", help="print the report but don't send it or advance the marker")
-    p.add_argument("--tex-path", type=Path, default=Path("report/main.tex"),
-                   help="LaTeX report whose PDF is sent (default: report/main.tex)")
-    return p.parse_args()
 
 
 def _channel_num(meta_name):
@@ -108,42 +57,6 @@ def load_sessions(out_dir):
     return sorted(sessions, key=lambda s: s["datetime"])
 
 
-def summarize(selected, cutoff, now):
-    if not selected:
-        return f"USRP X310 report: no recordings between {cutoff.date()} and {now.date()}."
-
-    per_day = defaultdict(int)
-    for s in selected:
-        per_day[s["datetime"].date()] += 1
-
-    lines = [
-        f"USRP X310 recording report: {cutoff.date()} to {now.date()}",
-        f"{len(selected)} recording(s) across {len(per_day)} day(s)",
-        f"total data: {sum(s['bytes'] for s in selected) / 1e6:.1f} MB, "
-        f"dropped samples: {sum(s['dropped'] for s in selected)}",
-    ]
-
-    first_channels = selected[0]["channels"]
-    lines.append("channels:")
-    for ch, meta, _ in first_channels:
-        lines.append(f"  ch{ch}: {meta['captures'][0]['core:frequency'] / 1e6:.3f} MHz, "
-                     f"{meta['global']['core:sample_rate'] / 1e6:.3f} MS/s, {meta['global']['x310:gain_db']:.1f} dB")
-
-    lines.append("")
-    lines.append("per-day breakdown:")
-    for day in sorted(per_day):
-        lines.append(f"  {day}: {per_day[day]} recording(s)")
-
-    span_days = (now.date() - cutoff.date()).days + 1
-    all_days = [cutoff.date() + timedelta(days=i) for i in range(span_days)]
-    missed = [d for d in all_days if per_day.get(d, 0) == 0]
-    if missed:
-        lines.append("")
-        lines.append(f"no recordings on: {', '.join(str(d) for d in missed)}")
-
-    return "\n".join(lines)
-
-
 def ordinal(n):
     """1 -> 'First', 2 -> 'Second', ... falls back to '6th record' etc. past ORDINALS."""
     if 1 <= n <= len(ORDINALS):
@@ -162,8 +75,8 @@ def tex_escape(text):
     return str(text).translate(_TEX_SPECIAL)
 
 
-def session_subsubsection_tex(session, record_number, tex_dir=Path("report")):
-    """Build one '\\subsubsection{...}' + metadata table for a single recording session, followed by its GNSS-SDR
+def session_subsection_tex(session, record_number, tex_dir=Path("report")):
+    """Build one '\\subsection{...}' + metadata table for a single recording session, followed by its GNSS-SDR
     results (\\input of gnss_sdr/<name>/results.tex, written by gnss_sdr_out2tex.py after the recording was
     processed) when tex_dir has them."""
     g0 = session["channels"][0][1]["global"]
@@ -212,7 +125,7 @@ def session_subsubsection_tex(session, record_number, tex_dir=Path("report")):
     ]
 
     lines = [
-        f"\\subsubsection{{{ordinal(record_number)} record}}",
+        f"\\subsection{{{ordinal(record_number)} record}}",
         r"\begin{table}[H]",
         r"  \centering",
         f"  \\begin{{tabular}}{{{col_spec}}}",
@@ -279,7 +192,7 @@ def compile_report_pdf(tex_path):
 def _day_ordinal(session, all_sessions):
     """Which recording of the day this session is (1st, 2nd, ...), counted across every
     session on disk for that day -- not just the batch being appended this run. Needed
-    because this script can run once per recording (not just once per 15-day digest), so
+    because update_report.py runs once per recording (not just once per 15-day digest), so
     a same-day counter reset per invocation would mislabel every run after the first."""
     day = session["datetime"].date()
     same_day_up_to_now = [s for s in all_sessions
@@ -288,17 +201,17 @@ def _day_ordinal(session, all_sessions):
 
 
 def append_to_report(sessions, tex_path, all_sessions):
-    """Append one \\subsection per day (each holding a \\subsubsection per recording that
-    day) to tex_path's document, just before \\end{document}. all_sessions (every session
+    """Append one \\section per day (each holding a \\subsection per recording that
+    day) to tex_path's document (the "Recording reports" \\part), just before \\end{document}. all_sessions (every session
     on disk, not just the ones being appended) is what makes the First/Second/... ordinal
-    correct across multiple runs of this script on the same day.
+    correct across several update_report.py runs on the same day.
 
     New sessions always arrive in non-decreasing date order (sessions is sorted by
-    datetime), so only the LAST "Records on ..." subsection heading already in the
+    datetime), so only the LAST "Records on ..." section heading already in the
     document is ever relevant: if it's the same day as the next new session, that
-    session's subsubsection is appended under it with no new heading; otherwise a new
-    day subsection is started. This avoids ever splitting one day's recordings across
-    two separate \\subsection blocks just because this script ran once per recording
+    session's subsection is appended under it with no new heading; otherwise a new
+    day section is started. This avoids ever splitting one day's recordings across
+    two separate \\section blocks just because update_report.py runs once per recording
     instead of once per day."""
     if not sessions:
         return
@@ -307,16 +220,16 @@ def append_to_report(sessions, tex_path, all_sessions):
         return
 
     text = tex_path.read_text()
-    existing_days = re.findall(r"\\subsection\{Records on (\d{2}/\d{2}/\d{4})\}", text)
+    existing_days = re.findall(r"\\section\{Records on (\d{2}/\d{2}/\d{4})\}", text)
     current_day = existing_days[-1] if existing_days else None
 
     blocks = []
     for s in sessions:
         date_str = s["datetime"].strftime("%d/%m/%Y")
         if date_str != current_day:
-            blocks.append(f"\\subsection{{Records on {date_str}}}")
+            blocks.append(f"\\section{{Records on {date_str}}}")
             current_day = date_str
-        blocks.append(session_subsubsection_tex(s, _day_ordinal(s, all_sessions), tex_path.parent))
+        blocks.append(session_subsection_tex(s, _day_ordinal(s, all_sessions), tex_path.parent))
 
     marker = r"\end{document}"
     if marker not in text:
@@ -326,7 +239,7 @@ def append_to_report(sessions, tex_path, all_sessions):
     insertion = "\n" + "\n\n".join(blocks) + "\n\n"
     text = text.replace(marker, insertion + marker, 1)
     tex_path.write_text(text)
-    print(f"appended {len(sessions)} subsection(s) to {tex_path}")
+    print(f"appended {len(sessions)} recording(s) to {tex_path}")
 
 
 def calendar_tikz_block(year, month, day_counts):
@@ -402,8 +315,9 @@ def calendar_table_tex(all_sessions):
         r"  \begin{tabular}{ccc}",
         "\n".join(rows),
         r"  \end{tabular}",
-        r"  \caption{Recording calendar. \textcolor{green}{Green}: 2 recordings made; "
-        r"\textcolor{blue}{blue}: 1 recording made. No color: no recording made.}",
+        # the colours are explained in the text above the table, which refers to it by this label
+        r"  \caption{Recording calendar.}",
+        r"  \label{tab:recording-calendar}",
         r"\end{table}",
     ])
 
@@ -423,58 +337,3 @@ def update_calendar_table(tex_path, all_sessions):
     text = text[:m.start()] + calendar_table_tex(all_sessions) + text[m.end():]
     tex_path.write_text(text)
     print(f"updated calendar table in {tex_path}")
-
-
-def main():
-    args = parse_args()
-    api_key = args.api_key or os.environ.get("OPENWA_API_KEY")
-    if not api_key:
-        raise SystemExit("error: set --api-key or $OPENWA_API_KEY")
-    session = args.session or os.environ.get("OPENWA_SESSION")
-    if not session:
-        raise SystemExit("error: set --session or $OPENWA_SESSION to the session's UUID")
-    to = args.to or os.environ.get("REPORT_WHATSAPP_TO")
-    if not to:
-        raise SystemExit("error: set --to or $REPORT_WHATSAPP_TO")
-
-    state_dir = args.state_dir or Path(os.environ.get("STATE_DIRECTORY", "/var/lib/x310-recorder"))
-    state_dir.mkdir(parents=True, exist_ok=True)
-    marker = state_dir / "last_report"
-
-    now = datetime.now(timezone.utc)
-    if args.since:
-        cutoff = datetime.fromisoformat(args.since)
-    elif marker.exists():
-        cutoff = datetime.fromisoformat(marker.read_text().strip())
-    else:
-        cutoff = now - timedelta(days=DEFAULT_LOOKBACK_DAYS)
-
-    sessions = load_sessions(args.out_dir)
-    selected = [s for s in sessions if s["datetime"] > cutoff]
-    body = summarize(selected, cutoff, now)
-    print(body)
-
-    if args.dry_run:
-        print("--dry-run: not sending, not advancing the last-report marker")
-        return
-
-    result = send_whatsapp(args.base_url, api_key, session, to, body)
-    print(f"sent: {result}")
-
-    if selected:
-        pdf_path = args.tex_path.with_suffix(".pdf")
-        if not pdf_path.exists() or pdf_path.stat().st_mtime < args.tex_path.stat().st_mtime:
-            pdf_path = compile_report_pdf(args.tex_path)  # e.g. main.tex edited by hand since the last recording
-            print(f"compiled {pdf_path}")
-        doc_result = send_document(
-            args.base_url, api_key, session, to, pdf_path,
-            filename="USRP_X310_Report.pdf",
-            caption=f"USRP X310 recording report: {cutoff.date()} to {now.date()}",
-        )
-        print(f"sent document: {doc_result}")
-
-    marker.write_text(now.isoformat())
-
-
-if __name__ == "__main__":
-    main()

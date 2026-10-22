@@ -1,6 +1,6 @@
 """Shared helpers for sending WhatsApp messages through a self-hosted OpenWA
 gateway (https://github.com/rmyndharis/OpenWA). Used by both notify_whatsapp.py
-(single-recording summary) and report_summary.py (periodic aggregate report).
+(single-recording summary) and send_whatsapp_msg.py (periodic aggregate report).
 """
 
 import base64
