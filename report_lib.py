@@ -5,10 +5,13 @@ Used by update_report.py (after every recording, from systemd/x310-record.sh), b
 (tex_escape) and by send_whatsapp_msg.py (load_sessions, compile_report_pdf for the 15-day WhatsApp message).
 """
 
+import glob
 import json
 import re
+import shutil
 import subprocess
 import tarfile
+import tempfile
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -103,7 +106,8 @@ def session_subsection_tex(session, record_number, tex_dir=Path("report")):
         for _, meta, size in session["channels"])
 
     n_channels = len(session["channels"])
-    span = f"\\multicolumn{{{n_channels}}}{{c|}}"  # centered across the channel columns
+    # centered across the channel columns, wrapped onto more lines beyond 7 cm (e.g. the long sample-type text)
+    span = f"\\multicolumn{{{n_channels}}}{{>{{\\centering\\arraybackslash}}p{{7cm}}|}}"
     col_spec = "|l|" + "l|" * n_channels  # vertical lines between every column
 
     rows = [
@@ -151,41 +155,45 @@ def session_subsection_tex(session, record_number, tex_dir=Path("report")):
 
 
 _LATEX_ERROR_RE = re.compile(r"^! |LaTeX Error:|Emergency stop|Fatal error occurred", re.MULTILINE)
+LATEX_FLAGS = ["-shell-escape", "-interaction=nonstopmode", "-file-line-error"]  # as report/Makefile
+
+
+def find_pdflatex():
+    """pdflatex from PATH, else from a TeX Live install under /usr/local/texlive (not on a systemd service's PATH)."""
+    found = shutil.which("pdflatex")
+    if found:
+        return found
+    installs = sorted(glob.glob("/usr/local/texlive/*/bin/*/pdflatex"))
+    if installs:
+        return installs[-1]  # newest year
+    raise SystemExit("error: pdflatex not found (neither on PATH nor under /usr/local/texlive)")
 
 
 def compile_report_pdf(tex_path):
-    """Run `make compile` in tex_path's directory (the report's own Makefile/toolchain:
-    pdflatex + biber + makeglossaries), twice so cross-references resolve. Two things make this document's build quirky, both
-    handled here rather than by trusting make's bare exit code:
-      - pdflatex's nonstopmode recovers from real LaTeX errors and still writes *a* PDF, so a
-        fresh mtime alone doesn't prove success -- main.log is grepped for actual error markers.
-      - this document has no \\cite{} commands, so biber/glossaries are cosmetic; biber is also
-        occasionally flaky reading a main.bcf pdflatex just wrote (a filesystem-flush race),
-        failing make's exit code even though the PDF itself is already complete and correct.
-    So: a missing/stale PDF, or a real LaTeX error in main.log, raises SystemExit; a nonzero
-    make exit code with neither of those (e.g. the biber race) is treated as success."""
+    """Compile tex_path with pdflatex (twice, so cross-references resolve) into a private temporary directory, and
+    only then replace <tex_path>.pdf with the result. Building elsewhere matters: an editor that rebuilds the
+    report on every change (LaTeX Workshop runs report/Makefile in report/) would otherwise write the same
+    main.aux/main.log at the same time, and one of the two builds fails ("I can't find file main.aux"). biber and
+    makeglossaries are skipped: the report has no citations and no printed glossary.
+    pdflatex's nonstopmode still writes a PDF after real LaTeX errors, so the log is checked for them too; on any
+    error the existing PDF is left untouched and SystemExit is raised."""
+    pdflatex = find_pdflatex()
     pdf_path = tex_path.with_suffix(".pdf")
-    log_path = tex_path.with_suffix(".log")
-    before_mtime = pdf_path.stat().st_mtime if pdf_path.exists() else None
-
-    # twice: the first pass writes the cross-references (Section~\\ref{sec:gnss-sdr}, figures) the second resolves
-    for _ in range(2):
-        result = subprocess.run(["make", "compile"], cwd=tex_path.parent, capture_output=True, text=True)
-
-    after_mtime = pdf_path.stat().st_mtime if pdf_path.exists() else None
-    if after_mtime is None or after_mtime == before_mtime:
-        tail = (result.stdout + result.stderr)[-2000:]
-        raise SystemExit(f"error: `make compile` in {tex_path.parent} didn't produce a fresh {pdf_path}:\n{tail}")
-
-    log_errors = _LATEX_ERROR_RE.findall(log_path.read_text(errors="replace")) if log_path.exists() else []
-    if log_errors:
-        raise SystemExit(f"error: {log_path} reports {len(log_errors)} LaTeX error(s) "
-                          f"(e.g. {log_errors[0]!r}); fix main.tex before sending the PDF")
-
-    if result.returncode != 0:
-        print(f"warning: `make compile` exited {result.returncode} (likely biber/glossaries "
-              f"post-processing, not needed by this citation-less document) but {pdf_path} "
-              f"was freshly rebuilt with no errors in {log_path}; continuing")
+    with tempfile.TemporaryDirectory(prefix="report-build-") as build:
+        for _ in range(2):
+            result = subprocess.run([pdflatex, *LATEX_FLAGS, f"-output-directory={build}", tex_path.name],
+                                    cwd=tex_path.parent, capture_output=True, text=True)
+        built_pdf = Path(build) / pdf_path.name
+        log = (Path(build) / tex_path.with_suffix(".log").name)
+        log_text = log.read_text(errors="replace") if log.exists() else ""
+        log_errors = _LATEX_ERROR_RE.findall(log_text)
+        if log_errors or not built_pdf.exists():
+            tail = (log_text or result.stdout + result.stderr)[-2000:]
+            raise SystemExit(f"error: compiling {tex_path} failed ({len(log_errors)} LaTeX error(s)); "
+                             f"{pdf_path} left unchanged:\n{tail}")
+        partial = pdf_path.with_name(f".{pdf_path.name}.partial")
+        shutil.copyfile(built_pdf, partial)
+        partial.replace(pdf_path)  # atomic: a viewer never sees a half-written PDF
     return pdf_path
 
 
