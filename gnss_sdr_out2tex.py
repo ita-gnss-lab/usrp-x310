@@ -176,8 +176,8 @@ def read_samples(archive, ch, meta):
 
 
 def stage_source(tex, out, archive, metas, bands):
-    tex.para("Signal source.", "Raw I/Q samples of each channel, as recorded "
-             f"({SOURCE_SECONDS:g}~s analysed, from {SOURCE_OFFSET_S:g}~s into the recording).")
+    tex.para("Signal source.", "Raw I/Q samples of each channel analysed within the window "
+             f"[{SOURCE_OFFSET_S:g}, {SOURCE_OFFSET_S + SOURCE_SECONDS:g}]~s after the start recording instant.")
     chans = sorted(metas)
     fig, axes = plt.subplots(len(chans), 2, figsize=(FIG_W, 2.0 * len(chans)), squeeze=False)
     rows = []
@@ -233,7 +233,8 @@ def stage_conditioner(tex, values, metas, bands):
         up = f"$\\times${k} zero-order hold (offline)" if k > 1 and resamp == "Pass_Through" else resamp
         rows.append([f"ch{i} ({BAND_LABEL[sig]})", tex_escape(g["core:datatype"]), tex_escape(item),
                      tex_escape(values.get(f"DataTypeAdapter{i}.implementation", "?")),
-                     tex_escape(values.get(f"InputFilter{i}.implementation", "?")), tex_escape(up),
+                     tex_escape(values.get(f"InputFilter{i}.implementation", "?")),
+                     up if k > 1 and resamp == "Pass_Through" else tex_escape(up),  # the x5 note is LaTeX already
                      f"{fs / 1e6:g} $\\to$ {internal / 1e6:g}"])
     tex.table_t(["Channel", "File format", "Source item type", "Data type adapter", "Input filter", "Resampling",
                "Rate [MS/s]"], rows, "Signal conditioner: recorded format and rate to gnss-sdr's internal "

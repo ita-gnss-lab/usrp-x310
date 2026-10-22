@@ -1,5 +1,5 @@
 \subsubsection{Signal source}
-Raw I/Q samples of each channel, as recorded (0.5~s analysed, from 10~s into the recording).
+Raw I/Q samples of each channel analysed within the window [10, 10.5]~s after the start recording instant.
 
 \begin{figure}[H]
   \centering
@@ -43,7 +43,7 @@ How each recorded channel is turned into the complex baseband stream the channel
     Source item type & ibyte & ibyte \\
     Data type adapter & Ibyte\_To\_Complex & Ibyte\_To\_Complex \\
     Input filter & Pass\_Through & Pass\_Through \\
-    Resampling & \$\textbackslash{}times\$5 zero-order hold (offline) & Pass\_Through \\
+    Resampling & $\times$5 zero-order hold (offline) & Pass\_Through \\
     Rate [MS/s] & 4 $\to$ 20 & 20 $\to$ 20 \\
     \hline
   \end{tabular}}

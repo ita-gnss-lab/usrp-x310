@@ -17,6 +17,14 @@ from datetime import datetime
 from pathlib import Path
 
 ORDINALS = ["First", "Second", "Third", "Fourth", "Fifth"]  # per-day record count never exceeds 2 in practice
+BAND_NAMES = {1575.42: "L1", 1227.60: "L2", 1176.45: "L5"}  # GPS carrier [MHz] -> band name
+
+
+def freq_cell(freq_hz):
+    """'1575.420 MHz (L1)': the centre frequency, plus the GPS band name when it is one."""
+    mhz = freq_hz / 1e6
+    band = BAND_NAMES.get(round(mhz, 2))
+    return f"{mhz:.3f} MHz" + (f" ({band})" if band else "")
 
 
 def _channel_num(meta_name):
@@ -88,8 +96,7 @@ def session_subsection_tex(session, record_number, tex_dir=Path("report")):
     sample_type = tex_escape(g0["core:sample_type_desc"])
 
     channel_cols = " & ".join(f"\\textbf{{Channel {ch}}}" for ch, _, _ in session["channels"])
-    freq_row = " & ".join(f"{meta['captures'][0]['core:frequency'] / 1e6:.3f} MHz"
-                           for _, meta, _ in session["channels"])
+    freq_row = " & ".join(freq_cell(meta["captures"][0]["core:frequency"]) for _, meta, _ in session["channels"])
     gain_row = " & ".join(f"{meta['global']['x310:gain_db']:.1f} dB" for _, meta, _ in session["channels"])
     antenna_row = " & ".join(tex_escape(meta["global"]["x310:antenna"]) for _, meta, _ in session["channels"])
     daughterboard_row = " & ".join(tex_escape(meta["global"]["x310:daughterboard"])
@@ -112,10 +119,10 @@ def session_subsection_tex(session, record_number, tex_dir=Path("report")):
 
     rows = [
         f"Start time & {span}{{{start_str}}} \\\\",
+        f"Frequency & {freq_row} \\\\",
         f"Duration & {duration_row} \\\\",
         f"Sample rate & {rate_row} \\\\",
         f"Sample type & {span}{{{sample_type}}} \\\\",
-        f"Frequency & {freq_row} \\\\",
         f"Gain & {gain_row} \\\\",
         f"Antenna & {antenna_row} \\\\",
         f"File size & {size_row} \\\\",
