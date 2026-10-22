@@ -213,7 +213,10 @@ Detects which satellites are present and gives a first, coarse estimate of each 
 Follows each detected signal with a delay-lock loop (code) and a phase-lock loop (carrier), producing every 1--20~ms the prompt correlator output (which carries the navigation data bits), the carrier-to-noise density ratio $C/N_0$, the Doppler, the code, and carrier phases.
 \begin{itemize}
   \item \textbf{$C/N_0$ and Doppler versus time} per satellite and band: $C/N_0$ of roughly 35--50~dB-Hz for an open-sky antenna, and smooth Doppler curves following the satellite motion.
-  \item \textbf{Prompt I/Q scatter} of the strongest satellite per band: with the carrier phase locked, the energy sits on the in-phase axis in two clusters (the $\pm1$ data bits); without phase lock it would be a ring.
+  \item \textbf{Prompt I/Q scatter} of the strongest satellite per band: with the carrier phase locked, the energy sits on the in-phase axis in two clusters (the $\pm1$ data bits); without phase lock it would be a ring. Each point is one prompt correlator output, the received samples $x[n]$ multiplied by the local code replica $c$ aligned at the estimated code delay $\hat\tau$ and by the local carrier replica (estimated Doppler $\hat f_D$ and phase $\hat\phi$), summed over the $N$ samples of one integration period ($T_s$: sampling period):
+  \begin{equation}
+    P = \sum_{n=1}^{N} x[n]\,c[n-\hat\tau]\,e^{-j(2\pi \hat f_D n T_s + \hat\phi)} = I + jQ.
+  \end{equation}
   \item \textbf{Table} per satellite: median $C/N_0$, percentage of time phase-locked, losses of lock and time tracked.
 \end{itemize}
 

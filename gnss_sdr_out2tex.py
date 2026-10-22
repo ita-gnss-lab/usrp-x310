@@ -138,12 +138,14 @@ class Tex:
         self.lines += ["    " + " & ".join(str(c) for c in row) + r" \\" for row in rows]
         self.lines += [r"    \hline", r"  \end{tabular}}", f"  \\caption{{{caption}}}", r"\end{table}", ""]
 
-    def table_t(self, header, rows, caption, span_rows=()):
+    def table_t(self, header, rows, caption, span_rows=(), col_width="3.8cm"):
         """table() transposed: one row per quantity (header[1:]), one column per item (rows' first cells), for
-        tables with few items but many quantities, which would be too wide the other way round."""
+        tables with few items but many quantities, which would be too wide the other way round. Each item column is
+        col_width wide, centred, and wraps longer text onto more lines."""
         new_header = [header[0]] + [str(r[0]) for r in rows]
         new_rows = [[header[i]] + [r[i] for r in rows] for i in range(1, len(header))]
-        self.table(new_header, new_rows, caption, align="l" + "c" * len(rows), span_rows=span_rows)
+        self.table(new_header, new_rows, caption, span_rows=span_rows,
+                   align="l" + f">{{\\centering\\arraybackslash}}p{{{col_width}}}" * len(rows))
 
     def write(self, path):
         path.write_text("\n".join(self.lines) + "\n")
@@ -196,32 +198,50 @@ def stage_source(tex, out, archive, metas, bands):
         ax = axes[i, 1]
         v = np.concatenate([x.real, x.imag])
         sd = v.std()
-        lim = min(full, 5 * sd)
-        bins = np.arange(-np.ceil(lim), np.ceil(lim) + 1) if g["core:datatype"] == "ci8" else 100
+        # whole integer range, so the clipping limits (red) show how much headroom the noise leaves
+        lim = 1.08 * full
+        if g["core:datatype"] == "ci8":
+            bins = np.arange(-full - 1.5, full + 1.5)  # one bin per integer value
+        else:
+            # 16-bit: the noise (std of tens) is tiny next to +-32767, so a symmetric-log x axis (linear within
+            # +-5 std, logarithmic beyond) shows both its shape and the limits; bins follow that scale
+            half = np.unique(np.round(np.concatenate([np.arange(0.5, 5 * sd, max(1.0, sd / 10)),
+                                                      np.geomspace(5 * sd, lim, 120)])))
+            bins = np.unique(np.concatenate([-half[::-1], half]))  # strictly increasing edges
         ax.hist(x.real, bins=bins, density=True, alpha=0.6, label="I")
-        ax.hist(x.imag, bins=bins, density=True, alpha=0.6, label="Q")
-        t = np.linspace(-lim, lim, 400)
+        # Q as a dashed outline: it overlaps I almost exactly, and a second filled histogram would hide it
+        ax.hist(x.imag, bins=bins, density=True, histtype="step", ls="--", lw=1.0, color="C1", label="Q")
+        t = np.unique(np.concatenate([np.linspace(-lim, lim, 2000), np.linspace(-6 * sd, 6 * sd, 1000)]))
         ax.plot(t, np.exp(-t ** 2 / (2 * sd ** 2)) / (sd * np.sqrt(2 * np.pi)), "k", lw=0.8, label="Gaussian")
+        for edge in (-full, full):
+            ax.axvline(edge, color="red", lw=0.8, label=f"clipping ($\\pm${full})" if edge > 0 else None)
+        if g["core:datatype"] != "ci8":
+            ax.set_xscale("symlog", linthresh=5 * sd)
         ax.set(xlabel="sample value", ylabel="density", title=f"ch{ch} I/Q histogram", xlim=(-lim, lim))
         ax.legend(fontsize=6)
         clip = np.mean(np.abs(v) >= full) * 100
+        bytes_per = {"ci8": 2, "ci16_le": 4}[g["core:datatype"]]
         rows.append([f"ch{ch}", f"{freq:.2f}", f"{fs / 1e6:g}", tex_escape(g["core:datatype"]),
+                     f"{bytes_per} ({bytes_per // 2} for I, {bytes_per // 2} for Q)", f"$\\pm${full}",
                      f"{g['x310:gain_db']:g}", f"{x.real.std():.1f} / {x.imag.std():.1f}",
-                     f"{np.mean(x.real):.2f} / {np.mean(x.imag):.2f}", f"{clip:.3f}",
-                     f"{g.get('x310:lost_samples', 0):,}"])
+                     f"{np.mean(x.real):.2f} / {np.mean(x.imag):.2f}",
+                     f"{x.real.min():.0f} / {x.real.max():.0f}", f"{x.imag.min():.0f} / {x.imag.max():.0f}",
+                     f"{full / sd:.1f}", f"{clip:.3f}", f"{g.get('x310:lost_samples', 0):,}"])
     fig.tight_layout()
     rel = savefig(fig, out, "source", tex)
     tex.figure(rel, "Signal source: power spectral density (the receiver passband over a flat thermal-noise floor; "
                "GNSS signals are below the noise, so only interference would stand out) and I/Q histograms "
                "(Gaussian noise, centred, not clipped).")
-    tex.table_t(["Channel", "Frequency [MHz]", "Rate [MS/s]", "Format", "Gain [dB]", "Std I / Q", "Mean I / Q",
-               "Clipped [\\%]", "Lost samples"], rows, "Signal source: sample statistics per channel.")
+    tex.table_t(["Channel", "Frequency [MHz]", "Rate [MS/s]", "Format", "Bytes per complex sample", "Full scale",
+                 "Gain [dB]", "Std I / Q", "Mean I / Q", "Min / max I", "Min / max Q", "Headroom (full scale / std)",
+                 "Clipped [\\%]", "Lost samples"], rows,
+                "Signal source: sample statistics per channel (headroom: how many standard deviations of the noise "
+                "fit before clipping).")
 
 
 # ------------------------------------------------------------------------------------ 2. signal conditioner
 def stage_conditioner(tex, values, metas, bands):
-    tex.para("Signal conditioner.", "How each recorded channel is turned into the complex baseband stream the "
-             "channels process.")
+    tex.para("Signal conditioner.")
     internal = float(values.get("GNSS-SDR.internal_fs_sps", 0))
     rows = []
     for i, (sig, _, _) in enumerate(bands):
@@ -230,7 +250,8 @@ def stage_conditioner(tex, values, metas, bands):
         item = values.get("SignalSource.item_type", values.get(f"SignalSource{i}.item_type", "?"))
         k = round(internal / fs) if fs else 0
         resamp = values.get(f"Resampler{i}.implementation", "?")
-        up = f"$\\times${k} zero-order hold (offline)" if k > 1 and resamp == "Pass_Through" else resamp
+        up = (f"$\\times${k} zero-order hold, offline (\\texttt{{upsample\\_iq.py}})"
+              if k > 1 and resamp == "Pass_Through" else resamp)
         rows.append([f"ch{i} ({BAND_LABEL[sig]})", tex_escape(g["core:datatype"]), tex_escape(item),
                      tex_escape(values.get(f"DataTypeAdapter{i}.implementation", "?")),
                      tex_escape(values.get(f"InputFilter{i}.implementation", "?")),
@@ -283,8 +304,19 @@ def stage_acquisition(tex, out, run_dir, bands, fs):
         axes[0].set(xlabel="code delay [chips]", ylabel="Doppler [kHz]",
                     title=f"{BAND_LABEL[sig]} PRN {int(d['PRN'])}: delay-Doppler map (zoom)")
         axes[1].plot(chips, norm[i_dop], lw=0.5)
+        # the correlation peak: circled, with a red arrow to its code delay on the right
+        peak_x, peak_y = chips[i_del], norm[i_dop, i_del]
+        axes[1].plot(peak_x, peak_y, "o", ms=9, mfc="none", mec="red", mew=1.2)
+        # label always to the right of the peak; near the right edge it is right-aligned to the axes and lower, so
+        # the arrow still points right (down to the label's start)
+        frac = peak_x / chips[-1]
+        room = frac < 0.6
+        axes[1].annotate(f"{peak_x:.1f} chips", xy=(peak_x, peak_y), xycoords="data",
+                         xytext=(frac + 0.1, 0.72) if room else (0.99, 0.42), textcoords="axes fraction",
+                         ha="left" if room else "right", color="red", fontsize=8, va="center",
+                         arrowprops=dict(arrowstyle="<-", color="red", lw=1.0, shrinkA=2, shrinkB=6))
         axes[1].set(xlabel="code delay [chips]", ylabel="power / noise floor",
-                    title=f"whole code period at {dopp[i_dop]:.0f} Hz")
+                    title=f"whole code period at {dopp[i_dop]:.0f} Hz", ylim=(0, 1.1 * peak_y))
         fig.tight_layout()
         shown.append((savefig(fig, out, f"acq_{sig}", tex), sig, d))
     for rel, sig, d in shown:
@@ -319,7 +351,7 @@ def losses_of_lock(run_dir):
 
 
 def stage_tracking(tex, out, run_dir, bands, fs):
-    tex.para("Tracking.", "Code (DLL) and carrier (PLL) loops per satellite.")
+    tex.para("Tracking.")
     trk = {}
     for p in run_dir.glob("trk_*_*.mat"):
         m = re.match(r"trk_(\w\w)_(\d+)\.mat$", p.name)
@@ -371,7 +403,7 @@ def stage_tracking(tex, out, run_dir, bands, fs):
     fig.tight_layout()
     tex.figure(savefig(fig, out, "tracking_iq", tex), "Tracking: prompt correlator outputs of the strongest "
                "satellite per band. Two tight clusters on one axis (the $\\pm1$ data bits; GNSS-SDR's L5 tracking puts "
-               "the data component on the Q axis) mean the PLL is phase-locked; a ring would mean it is not.")
+               "the data component on the Q axis) mean the PLL is phase-locked; a ring would mean it is not. \\texttt{Prompt\\_I}/\\texttt{Prompt\\_Q} are 32-bit floats (sums of the samples over one integration period, in file units): they never clip, only overflowing beyond $\\pm 3.4\\times10^{38}$, far above the $N\\cdot\\text{full scale}\\cdot\\sqrt{2}$ a sum of $N$ samples can reach.")
     tex.table(["Band", "Ch.", "PRN", "Median C/N$_0$ [dB-Hz]", "Phase-locked [\\%]", "Losses of lock",
                "Tracked [s]"], rows, f"Tracking: per channel and satellite (phase-locked: carrier lock test "
                f"$> {LOCK_OK}$).")
@@ -402,8 +434,7 @@ def nav_message_counts(run_dir):
 
 
 def stage_telemetry(tex, out, run_dir, bands, fs):
-    tex.para("Telemetry decoder.", "Navigation-message decoding: bit/frame synchronization, parity/CRC, the "
-             "ephemeris, and the satellite transmit time (time of week) of every measurement.")
+    tex.para("Telemetry decoder.")
     tlm = {}
     for p in run_dir.glob("tlm_*_*.mat"):
         m = re.match(r"tlm_(\w\w)_(\d+)\.mat$", p.name)
@@ -625,7 +656,7 @@ def main():
     obs = stage_observables(tex, out, run_dir, bands)
     stage_pvt(tex, out, run_dir, bands, obs)
     tex.write(out / "results.tex")
-    print(f"wrote {out / 'results.tex'} and {len(list(out.glob('*.pdf')))} figures")
+    print(f"wrote {out / 'results.tex'} and {len(list(out.glob('*.png')))} figures")
 
 
 if __name__ == "__main__":

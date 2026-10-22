@@ -11,31 +11,35 @@ Raw I/Q samples of each channel analysed within the window [10, 10.5]~s after th
   \centering
   \footnotesize
   \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
-  \begin{tabular}{lcc}
+  \begin{tabular}{l>{\centering\arraybackslash}p{3.8cm}>{\centering\arraybackslash}p{3.8cm}}
     \hline
     \textbf{Channel} & \textbf{ch0} & \textbf{ch1} \\
     \hline
     Frequency [MHz] & 1575.42 & 1176.45 \\
     Rate [MS/s] & 4 & 20 \\
     Format & ci8 & ci8 \\
+    Bytes per complex sample & 2 (1 for I, 1 for Q) & 2 (1 for I, 1 for Q) \\
+    Full scale & $\pm$127 & $\pm$127 \\
     Gain [dB] & 25 & 25 \\
     Std I / Q & 31.1 / 31.0 & 31.6 / 31.6 \\
     Mean I / Q & 0.06 / 0.05 & -0.02 / 0.13 \\
+    Min / max I & -127 / 127 & -127 / 127 \\
+    Min / max Q & -127 / 127 & -127 / 127 \\
+    Headroom (full scale / std) & 4.1 & 4.0 \\
     Clipped [\%] & 0.004 & 0.006 \\
     Lost samples & 0 & 1,123,218 \\
     \hline
   \end{tabular}}
-  \caption{Signal source: sample statistics per channel.}
+  \caption{Signal source: sample statistics per channel (headroom: how many standard deviations of the noise fit before clipping).}
 \end{table}
 
 \subsubsection{Signal conditioner}
-How each recorded channel is turned into the complex baseband stream the channels process.
 
 \begin{table}[H]
   \centering
   \footnotesize
   \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
-  \begin{tabular}{lcc}
+  \begin{tabular}{l>{\centering\arraybackslash}p{3.8cm}>{\centering\arraybackslash}p{3.8cm}}
     \hline
     \textbf{Channel} & \textbf{ch0 (L1 C/A)} & \textbf{ch1 (L5)} \\
     \hline
@@ -43,7 +47,7 @@ How each recorded channel is turned into the complex baseband stream the channel
     Source item type & ibyte & ibyte \\
     Data type adapter & Ibyte\_To\_Complex & Ibyte\_To\_Complex \\
     Input filter & Pass\_Through & Pass\_Through \\
-    Resampling & $\times$5 zero-order hold (offline) & Pass\_Through \\
+    Resampling & $\times$5 zero-order hold, offline (\texttt{upsample\_iq.py}) & Pass\_Through \\
     Rate [MS/s] & 4 $\to$ 20 & 20 $\to$ 20 \\
     \hline
   \end{tabular}}
@@ -81,7 +85,6 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
 \end{table}
 
 \subsubsection{Tracking}
-Code (DLL) and carrier (PLL) loops per satellite.
 
 \begin{figure}[H]
   \centering
@@ -92,7 +95,7 @@ Code (DLL) and carrier (PLL) loops per satellite.
 \begin{figure}[H]
   \centering
   \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261021T193000Z/tracking_iq.png}
-  \caption{Tracking: prompt correlator outputs of the strongest satellite per band. Two tight clusters on one axis (the $\pm1$ data bits; GNSS-SDR's L5 tracking puts the data component on the Q axis) mean the PLL is phase-locked; a ring would mean it is not.}
+  \caption{Tracking: prompt correlator outputs of the strongest satellite per band. Two tight clusters on one axis (the $\pm1$ data bits; GNSS-SDR's L5 tracking puts the data component on the Q axis) mean the PLL is phase-locked; a ring would mean it is not. \texttt{Prompt\_I}/\texttt{Prompt\_Q} are 32-bit floats (sums of the samples over one integration period, in file units): they never clip, only overflowing beyond $\pm 3.4\times10^{38}$, far above the $N\cdot\text{full scale}\cdot\sqrt{2}$ a sum of $N$ samples can reach.}
 \end{figure}
 
 \begin{table}[H]
@@ -121,7 +124,6 @@ Code (DLL) and carrier (PLL) loops per satellite.
 \end{table}
 
 \subsubsection{Telemetry decoder}
-Navigation-message decoding: bit/frame synchronization, parity/CRC, the ephemeris, and the satellite transmit time (time of week) of every measurement.
 
 \begin{figure}[H]
   \centering
@@ -191,7 +193,7 @@ Position from the pseudoranges and the decoded ephemeris, compared with the surv
   \centering
   \footnotesize
   \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
-  \begin{tabular}{lcc}
+  \begin{tabular}{l>{\centering\arraybackslash}p{3.8cm}>{\centering\arraybackslash}p{3.8cm}}
     \hline
     \textbf{Solution} & \textbf{gnss-sdr, L1 C/A} & \textbf{iono-free L1 C/A + L5} \\
     \hline

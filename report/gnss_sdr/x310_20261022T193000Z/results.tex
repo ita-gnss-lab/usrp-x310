@@ -11,31 +11,35 @@ Raw I/Q samples of each channel analysed within the window [10, 10.5]~s after th
   \centering
   \footnotesize
   \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
-  \begin{tabular}{lcc}
+  \begin{tabular}{l>{\centering\arraybackslash}p{3.8cm}>{\centering\arraybackslash}p{3.8cm}}
     \hline
     \textbf{Channel} & \textbf{ch0} & \textbf{ch1} \\
     \hline
     Frequency [MHz] & 1575.42 & 1227.60 \\
     Rate [MS/s] & 4 & 4 \\
     Format & ci16\_le & ci16\_le \\
+    Bytes per complex sample & 4 (2 for I, 2 for Q) & 4 (2 for I, 2 for Q) \\
+    Full scale & $\pm$32767 & $\pm$32767 \\
     Gain [dB] & 25 & 25 \\
     Std I / Q & 30.2 / 31.1 & 42.1 / 42.1 \\
     Mean I / Q & -0.04 / -0.13 & 0.28 / 0.05 \\
+    Min / max I & -151 / 154 & -227 / 208 \\
+    Min / max Q & -150 / 164 & -208 / 210 \\
+    Headroom (full scale / std) & 1069.3 & 778.5 \\
     Clipped [\%] & 0.000 & 0.000 \\
     Lost samples & 0 & 0 \\
     \hline
   \end{tabular}}
-  \caption{Signal source: sample statistics per channel.}
+  \caption{Signal source: sample statistics per channel (headroom: how many standard deviations of the noise fit before clipping).}
 \end{table}
 
 \subsubsection{Signal conditioner}
-How each recorded channel is turned into the complex baseband stream the channels process.
 
 \begin{table}[H]
   \centering
   \footnotesize
   \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
-  \begin{tabular}{lcc}
+  \begin{tabular}{l>{\centering\arraybackslash}p{3.8cm}>{\centering\arraybackslash}p{3.8cm}}
     \hline
     \textbf{Channel} & \textbf{ch0 (L1 C/A)} & \textbf{ch1 (L2C)} \\
     \hline
@@ -75,7 +79,6 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
 \end{table}
 
 \subsubsection{Tracking}
-Code (DLL) and carrier (PLL) loops per satellite.
 
 \begin{figure}[H]
   \centering
@@ -86,7 +89,7 @@ Code (DLL) and carrier (PLL) loops per satellite.
 \begin{figure}[H]
   \centering
   \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261022T193000Z/tracking_iq.png}
-  \caption{Tracking: prompt correlator outputs of the strongest satellite per band. Two tight clusters on one axis (the $\pm1$ data bits; GNSS-SDR's L5 tracking puts the data component on the Q axis) mean the PLL is phase-locked; a ring would mean it is not.}
+  \caption{Tracking: prompt correlator outputs of the strongest satellite per band. Two tight clusters on one axis (the $\pm1$ data bits; GNSS-SDR's L5 tracking puts the data component on the Q axis) mean the PLL is phase-locked; a ring would mean it is not. \texttt{Prompt\_I}/\texttt{Prompt\_Q} are 32-bit floats (sums of the samples over one integration period, in file units): they never clip, only overflowing beyond $\pm 3.4\times10^{38}$, far above the $N\cdot\text{full scale}\cdot\sqrt{2}$ a sum of $N$ samples can reach.}
 \end{figure}
 
 \begin{table}[H]
@@ -118,7 +121,6 @@ Code (DLL) and carrier (PLL) loops per satellite.
 \end{table}
 
 \subsubsection{Telemetry decoder}
-Navigation-message decoding: bit/frame synchronization, parity/CRC, the ephemeris, and the satellite transmit time (time of week) of every measurement.
 
 \begin{figure}[H]
   \centering
@@ -202,7 +204,7 @@ Position from the pseudoranges and the decoded ephemeris, compared with the surv
   \centering
   \footnotesize
   \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
-  \begin{tabular}{lcc}
+  \begin{tabular}{l>{\centering\arraybackslash}p{3.8cm}>{\centering\arraybackslash}p{3.8cm}}
     \hline
     \textbf{Solution} & \textbf{gnss-sdr, L1 C/A} & \textbf{iono-free L1 C/A + L2C} \\
     \hline
