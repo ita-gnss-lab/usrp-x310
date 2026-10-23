@@ -1,33 +1,32 @@
 #!/usr/bin/env bash
-# Run GNSS-SDR with a given config (--conf; default gps_l1_l5_file.conf) on one two-channel x310usrp_record.py
+# Run GNSS-SDR with a given config (--conf; default l1ca8bits4msps_l5_8bits20msps.conf) on one two-channel x310usrp_record.py
 # recording (ch0 = L1, ch1 = the second band).
 #
 # Usage:
-#   ./run_gnss_sdr.sh [--conf <file>] [--dump-observables] [--l1-pvt] [recordings/<name>.sigmf]    # default: newest in recordings/
+#   ./run_gnss_sdr.sh [--conf <file>] [--report] [--l1-pvt] [recordings/<name>.sigmf]    # default: newest in recordings/
 #   ./run_gnss_sdr.sh [...] staging/<name>                 # a recording left as loose files, not bundled
 #
 #   The loose form (<dir>/<name>_ch{0,1}.sigmf-{meta,data}, e.g. when bundling into the .sigmf archive failed
 #   for lack of disk space) is read in place: nothing is extracted, so /tmp needs no free space.
 #
-#   --conf <file>       gnss-sdr config to run, e.g. gps_l1_l5_file.conf (the default: L1 at 4 MS/s + L5 at 20 MS/s)
-#                       or l1ca4msps_l2c4msps.conf (L1 + L2C, both at 4 MS/s). It must read the recording with either
+#   --conf <file>       gnss-sdr config to run, e.g. l1ca8bits4msps_l5_8bits20msps.conf (the default: L1 at 4 MS/s + L5 at 20 MS/s)
+#                       or l1ca16bits4msps_l2c16bits4msps.conf (L1 + L2C, both at 4 MS/s). It must read the recording with either
 #                       two File_Signal_Sources (SignalSource0/1.filename) or one Multichannel_File_Signal_Source
 #                       (SignalSource.filename0/1); this script fills in the file names and sample formats
-#   --dump-observables  also save every channel's observables (pseudorange, carrier phase, Doppler, ...) per
-#                       epoch to gnss_sdr_output/<name>/observables.mat, for compare_pseudoranges.py
 #   --report            also dump what gnss_sdr_out2tex.py needs to show every receiver stage: the acquisition grids of
 #                       the first channel of each band, every channel's tracking and navigation-decoder outputs, the
-#                       observables and the PVT solutions (implies --dump-observables)
+#                       observables (pseudorange, carrier phase, Doppler, ... per epoch, observables.mat) and the PVT
+#                       solutions
 #   --out-suffix <s>    write the outputs to gnss_sdr_output/<name><s>/ instead of gnss_sdr_output/<name>/, for a
 #                       second run of the same recording with another config (e.g. _galileo)
 #   --l1-pvt            still track both bands, but compute the position from L1 only (PVT.iono_model=Broadcast)
 #                       instead of the dual-frequency Iono-Free-LC: a failing dual-frequency solver keeps resetting
-#                       the observables, which also hides the second band's measurements from --dump-observables
+#                       the observables, which also hides the second band's measurements from the observables dump
 #
 # Steps:
 #   1. reads each channel's sample format from the archive's metadata: ci8 (8-bit, x310usrp_record.py with
 #      --int8-div) or ci16_le (the X310's sc16 as received, no --int8-div), and checks each channel's rate matches
-#      the config's sampling_frequency for it (e.g. gps_l1_l5_file.conf: ch0 at 4 MS/s, ch1 at 20 MS/s). With a
+#      the config's sampling_frequency for it (e.g. l1ca8bits4msps_l5_8bits20msps.conf: ch0 at 4 MS/s, upsampled, ch1 at 20 MS/s). With a
 #      Multichannel_File_Signal_Source, a channel recorded k times slower than the config's rate (an integer k) is
 #      accepted too and upsampled k times (upsample_iq.py, zero-order hold), e.g. L1 4 -> 20 MS/s next to L5
 #   2. extracts the two .sigmf-data files (upsampled where needed) to a temporary directory in /tmp
@@ -40,7 +39,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 UV="$(command -v uv || echo /home/tapyu/.local/bin/uv)"  # systemd services don't have ~/.local/bin in PATH
-CONF="$REPO_DIR/gps_l1_l5_file.conf"
+CONF="$REPO_DIR/l1ca8bits4msps_l5_8bits20msps.conf"
 
 dump_observables=false
 report=false
@@ -49,7 +48,6 @@ out_suffix=""
 while [[ "${1:-}" == --* ]]; do
     case "$1" in
         --conf) CONF="$(realpath "${2:?--conf needs a file}")"; shift ;;
-        --dump-observables) dump_observables=true ;;
         --report) report=true; dump_observables=true ;;
         --l1-pvt) l1_pvt=true ;;
         --out-suffix) out_suffix="${2:?--out-suffix needs a value}"; shift ;;
@@ -156,7 +154,7 @@ data0=${data[0]}
 data1=${data[1]}
 
 # 3. run gnss-sdr with this recording's files swapped into a copy of the config. Outputs of a previous run of this
-# recording are removed first: stale RINEX/dump files would be mixed with the new ones (and compare_pseudoranges.py
+# recording are removed first: stale RINEX/dump files would be mixed with the new ones (and gnss_sdr_out2tex.py
 # reads the only *.conf)
 rm -rf "$out_dir"
 mkdir -p "$out_dir"
@@ -177,7 +175,7 @@ if $l1_pvt; then
 fi
 if $dump_observables; then
     # gnss-sdr writes observables.dat (binary) and, with dump_mat, observables.mat next to it
-    printf '%s\n' "" "; added by run_gnss_sdr.sh --dump-observables" \
+    printf '%s\n' "" "; added by run_gnss_sdr.sh --report" \
         "Observables.dump=true" "Observables.dump_filename=observables.dat" "Observables.dump_mat=true" \
         >> "$run_conf"
     echo "dumping observables to $out_dir/observables.mat"

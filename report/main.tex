@@ -194,9 +194,9 @@ A recording is only useful if a GNSS receiver can use it: find the satellites in
 
 \paragraph{Processing setup.} Both channels of a recording are read by one \texttt{Multichannel\_File\_Signal\_Source}, so the two bands advance in lockstep (with one independent source per band, one band runs ahead of the other and its measurements are discarded). That source reads both files at one rate: the 4~MS/s L1 C/A file of the L1/L5 recordings is upsampled 5 times (each sample repeated) to the 20~MS/s of L5 before GNSS-SDR. GNSS-SDR v0.0.20's position (RTKLIB, single point) is computed per run as follows:
 \begin{itemize}
-  \item \textbf{First recording, GPS run} (GPS L1 C/A + L5): from L1 C/A only (broadcast ionosphere model), since its dual-frequency solver was unstable with the few L5-capable GPS satellites in view. The ionosphere-free GPS L1 C/A + L5 position is computed outside GNSS-SDR, from its observables and decoded ephemeris, with our own single-point positioning (\texttt{gnss\_spp.py}).
+  \item \textbf{First recording, GPS run} (GPS L1 C/A + L5): from L1 C/A only (broadcast ionosphere model), since its dual-frequency solver was unstable with the few L5-capable GPS satellites in view. The ionosphere-free GPS L1 C/A + L5 position is computed outside GNSS-SDR, from its observables and decoded ephemeris, with our own single-point positioning (\texttt{gnss\_spp\_lib.py}).
   \item \textbf{First recording, Galileo run} (Galileo E1-B/C + E5a): GNSS-SDR's own dual-frequency, ionosphere-free (\texttt{Iono-Free-LC}) position. Every Galileo satellite broadcasts both E1 and E5a, so all satellites in view count, unlike GPS L5.
-  \item \textbf{Second recording} (GPS L1 C/A + L2C + Galileo E1-B/C): GNSS-SDR's own single-frequency, multi-constellation position from GPS L1 C/A and Galileo E1 together (broadcast ionosphere model; RTKLIB estimates the GPS--Galileo clock offset). GNSS-SDR's solver ignores L2C, so the ionosphere-free GPS L1 C/A + L2C position again comes from \texttt{gnss\_spp.py}.
+  \item \textbf{Second recording} (GPS L1 C/A + L2C + Galileo E1-B/C): GNSS-SDR's own single-frequency, multi-constellation position from GPS L1 C/A and Galileo E1 together (broadcast ionosphere model; RTKLIB estimates the GPS--Galileo clock offset). GNSS-SDR's solver ignores L2C, so the ionosphere-free GPS L1 C/A + L2C position again comes from \texttt{gnss\_spp\_lib.py}.
 \end{itemize}
 The Galileo run's stages are reported after the GPS run's, with ``(Galileo E1 + E5a)'' in their headings; its signal source is the same recording, so that stage is not repeated.
 
@@ -251,8 +251,8 @@ Aligns all channels on common receiver epochs and forms, for each satellite and 
 \subsection{PVT}
 Computes position, velocity and receiver clock (PVT) from the pseudoranges and the decoded ephemeris. The antenna position was surveyed: $-23.209433^\circ$, $-45.874875^\circ$, 596.42~m (WGS-84), so the errors below are true errors, not just scatter.
 \begin{itemize}
-  \item \textbf{Horizontal error scatter and east/north/up error versus time} for GNSS-SDR's own solution of each run and, for the GPS runs, \texttt{gnss\_spp.py}'s dual-frequency ionosphere-free solution. Single-frequency single-point positioning is expected to stay within a few metres horizontally and ${\sim}10$~m vertically; the iono-free combination removes the ionospheric bias but amplifies the code noise about three times.
-  \item \textbf{Sky plot} of the GPS satellites used by \texttt{gnss\_spp.py}.
+  \item \textbf{Horizontal error scatter and east/north/up error versus time} for GNSS-SDR's own solution of each run and, for the GPS runs, \texttt{gnss\_spp\_lib.py}'s dual-frequency ionosphere-free solution. Single-frequency single-point positioning is expected to stay within a few metres horizontally and ${\sim}10$~m vertically; the iono-free combination removes the ionospheric bias but amplifies the code noise about three times.
+  \item \textbf{Sky plot} of the GPS satellites used by \texttt{gnss\_spp\_lib.py}.
   \item \textbf{Table}: mean error (accuracy), standard deviation (precision), 2-D and 3-D RMS, and 95\% horizontal error.
 \end{itemize}
 
@@ -428,7 +428,7 @@ Computes position, velocity and receiver clock (PVT) from the pseudoranges and t
     \hline
     Recorder & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{UHD Python API} \\
     \hline
-    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}, \texttt{galileo\_e1\_8bits4msps\_e5a\_8bits20msps.conf}} \\
+    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}, \texttt{e1\_8bits4msps\_e5a\_8bits20msps.conf}} \\
     \hline
   \end{tabular}
   \caption{Metadata for recording \texttt{x310\_20261022T190000Z}, captured starting 2026-10-22T19:00:06.973177Z.}
@@ -523,7 +523,7 @@ Computes position, velocity and receiver clock (PVT) from the pseudoranges and t
     \hline
     Recorder & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{UHD Python API} \\
     \hline
-    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}, \texttt{galileo\_e1\_8bits4msps\_e5a\_8bits20msps.conf}} \\
+    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}, \texttt{e1\_8bits4msps\_e5a\_8bits20msps.conf}} \\
     \hline
   \end{tabular}
   \caption{Metadata for recording \texttt{x310\_20261023T190000Z}, captured starting 2026-10-23T19:00:06.932068Z.}

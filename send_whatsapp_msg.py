@@ -9,9 +9,7 @@ session/record). Keeps only the ones newer than the last report (tracked in
 a state file, defaulting to 15 days back on first run), and:
   1. sends a short text summary -- counts, data volume, dropped samples,
      and which days (if any) had no recording -- through a self-hosted
-     OpenWA gateway (https://github.com/rmyndharis/OpenWA). See
-     notify_whatsapp.py for a single-recording notification instead of this
-     periodic aggregate.
+     OpenWA gateway (https://github.com/rmyndharis/OpenWA).
   2. sends the report PDF as a WhatsApp document to the same recipient. The report itself is kept up to date by
      the recording service, not here: after every recording, systemd/x310-record.sh processes it with GNSS-SDR
      and runs update_report.py, which appends the recording (metadata table + GNSS-SDR results) to --tex-path
@@ -20,9 +18,8 @@ Both sends (and the marker advance) are skipped on --dry-run.
 
 The recordings' metadata and the PDF compilation come from report_lib.py.
 
-Intended to run every 15 days via x310-report.timer (see systemd/), driven
-by the same WhatsApp session as notify_whatsapp.py -- i.e. it sends from
-whichever number was paired into $OPENWA_SESSION.
+Intended to run every 15 days via x310-report.timer (see systemd/). It sends
+from whichever number was paired into $OPENWA_SESSION.
 
 Example:
   export OPENWA_API_KEY=xxxxxxxx
@@ -32,15 +29,72 @@ Example:
 """
 
 import argparse
+import base64
+import json
 import os
+import re
+import urllib.error
+import urllib.request
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from report_lib import compile_report_pdf, load_sessions
-from whatsapp import send_document, send_whatsapp
 
 DEFAULT_LOOKBACK_DAYS = 15
+# OpenWA's body-size limit (default 25 MB) caps base64 payloads to roughly 18 MB of actual file content
+MAX_DOCUMENT_BYTES = 18 * 1024 * 1024
+
+
+# ----------------------------------------------------------------------------------------- OpenWA gateway
+def to_chat_id(phone):
+    """E.164 phone number ('+5581999999999') -> OpenWA chat id ('5581999999999@c.us')."""
+    digits = re.sub(r"\D", "", phone)
+    if not digits:
+        raise SystemExit(f"error: '{phone}' has no digits to build a chat id from")
+    return f"{digits}@c.us"
+
+
+def post_openwa(base_url, api_key, session, endpoint, payload):
+    """POST a JSON payload to one of OpenWA's message endpoints. Raises SystemExit with the server's error on
+    failure."""
+    url = f"{base_url.rstrip('/')}/api/sessions/{session}/messages/{endpoint}"
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST")
+    req.add_header("Content-Type", "application/json")
+    req.add_header("X-API-Key", api_key)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        raise SystemExit(f"error: OpenWA returned {e.code}: {e.read().decode()}")
+    except urllib.error.URLError as e:
+        raise SystemExit(f"error: couldn't reach OpenWA at {url}: {e.reason}")
+
+
+def send_whatsapp(base_url, api_key, session, to, body):
+    """Send a text message."""
+    return post_openwa(base_url, api_key, session, "send-text", {"chatId": to_chat_id(to), "text": body})
+
+
+def send_document(base_url, api_key, session, to, file_path, filename=None, mimetype="application/pdf", caption=None):
+    """Send a local file as a document, base64-encoded in the JSON body. Raises SystemExit before even trying
+    if the file is over OpenWA's body limit, rather than letting the server reject it."""
+    data = file_path.read_bytes()
+    if len(data) > MAX_DOCUMENT_BYTES:
+        raise SystemExit(
+            f"error: {file_path} is {len(data) / 1e6:.1f} MB, over OpenWA's ~{MAX_DOCUMENT_BYTES / 1e6:.0f} MB "
+            "base64 body limit; send by URL instead or raise OpenWA's BODY_SIZE_LIMIT"
+        )
+    payload = {
+        "chatId": to_chat_id(to),
+        "base64": base64.b64encode(data).decode("ascii"),
+        "mimetype": mimetype,
+        "filename": filename or file_path.name,
+    }
+    if caption:
+        payload["caption"] = caption
+    return post_openwa(base_url, api_key, session, "send-document", payload)
+
 
 
 def parse_args():

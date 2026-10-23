@@ -60,7 +60,7 @@ PROFILE_NAMES=("GPS L1 C/A + L5, 8-bit" "GPS L1 C/A + L2C, 16-bit")
 # a second gnss-sdr run of the same recording ("" = none): the 1st recording's L1/L5 bands also hold Galileo E1/E5a,
 # whose dual-frequency (Iono-Free-LC) position gnss-sdr computes itself; the 2nd profile's config tracks Galileo E1
 # beside GPS in its single run
-PROFILE_EXTRA_CONFS=("galileo_e1_8bits4msps_e5a_8bits20msps.conf" "")
+PROFILE_EXTRA_CONFS=("e1_8bits4msps_e5a_8bits20msps.conf" "")
 PROFILE_EXTRA_TAGS=("galileo" "")
 PROFILE_EXTRA_TITLES=("Galileo E1 + E5a" "")
 REPORT_DIR="$REPO_DIR/report/gnss_sdr"

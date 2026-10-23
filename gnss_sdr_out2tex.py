@@ -7,7 +7,7 @@ section, written to <out>/results.tex (\\input under the recording's metadata ta
   3. Acquisition          delay-Doppler map of the strongest detection per band; table of attempts/detections
   4. Tracking             C/N0 and Doppler vs time per satellite; prompt I/Q scatter; table per satellite
   5. Telemetry decoder    timeline of valid navigation-message time; table: messages, ephemeris, first TOW
-  6. Observables          availability per satellite; P_band - P_L1 vs time; table (compare_pseudoranges.py stats)
+  6. Observables          availability per satellite; P_band - P_L1 vs time; table of its mean/std/drift
   7. PVT                  ENU scatter + time series about the surveyed antenna, skyplot; table of position errors
 Every element is optional: a missing GNSS-SDR output becomes a "not produced" line instead of a LaTeX error, so
 the report always compiles and shows how far the receiver got.
@@ -38,8 +38,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.ticker import EngFormatter, MaxNLocator  # noqa: E402
 import numpy as np  # noqa: E402
 
-from compare_pseudoranges import load_observables  # noqa: E402
-from gnss_spp import enu_errors, load_lnav_ephemeris, solve  # noqa: E402
+from gnss_spp_lib import enu_errors, load_lnav_ephemeris, load_observables, solve  # noqa: E402
 from report_lib import BAND_NAMES, tex_escape  # noqa: E402
 
 ANTENNA_LLH = (-23.209433, -45.874875, 596.42)  # surveyed antenna position (lat, lon [deg], h [m]), GNSS lab ITA
@@ -659,21 +658,21 @@ def stage_pvt(tex, out, run_dir, bands, obs, values):
         lat, lon, h = d.get("latitude"), d.get("longitude"), d.get("height")
         if lat is not None:
             ok = (np.abs(lat) > 0) & np.isfinite(lat)
-            from gnss_spp import enu_matrix, llh_to_ecef
+            from gnss_spp_lib import enu_matrix, llh_to_ecef
             ref, r = llh_to_ecef(*ANTENNA_LLH), enu_matrix(ANTENNA_LLH[0], ANTENNA_LLH[1])
             enu = np.array([r @ (llh_to_ecef(a, b, c) - ref) for a, b, c in zip(lat[ok], lon[ok], h[ok])]).reshape(-1, 3)
             sols.append((gnss_sdr_pvt_label(values, bands), enu, d.get("RX_time", np.arange(ok.size))[ok] if ok.any() else []))
     spp_epochs = {}
     eph_path = run_dir / "gps_ephemeris.xml"
     run_signals = [b[0] for b in bands]
-    # gnss_spp.py is GPS-only: a GPS L1 C/A + L5 (or L2C) run gets its iono-free solution too
+    # gnss_spp_lib.py is GPS-only: a GPS L1 C/A + L5 (or L2C) run gets its iono-free solution too
     second = next((s for s in ("L5", "2S") if s in run_signals), None) if "1C" in run_signals else None
     if obs is not None and eph_path.exists() and second:
         eph = load_lnav_ephemeris(eph_path)
         chan_bands = [band_of_channel(bands, ch) for ch in range(sum(b[2] for b in bands))]
         ep = solve(obs, chan_bands, eph, second_band=second)
         spp_epochs[second] = ep
-        sols.append((f"gnss\\_spp.py, L1 C/A + {BAND_LABEL[second]}, iono-free", enu_errors(ep, ANTENNA_LLH),
+        sols.append((f"gnss\\_spp\\_lib.py, L1 C/A + {BAND_LABEL[second]}, iono-free", enu_errors(ep, ANTENNA_LLH),
                      np.array([e["t"] for e in ep])))
     if not sols:
         tex.missing("PVT solutions")
@@ -708,7 +707,7 @@ def stage_pvt(tex, out, run_dir, bands, obs, values):
                "solution" + ("" if values.get("PVT.iono_model") == "Iono-Free-LC" else
                              " (single frequency, broadcast ionosphere model)") + ".")
     if spp_epochs:
-        caption += (" gnss\\_spp.py: computed from gnss-sdr's observables and decoded GPS ephemeris, removing the "
+        caption += (" gnss\\_spp\\_lib.py: computed from gnss-sdr's observables and decoded GPS ephemeris, removing the "
                     "ionospheric delay with the second band (pseudoranges carrier-smoothed over 100~s).")
     tex.figure(savefig(fig, out, "pvt", tex), caption)
     sky = next((ep for ep in spp_epochs.values() if ep), None)
@@ -731,13 +730,13 @@ def stage_pvt(tex, out, run_dir, bands, obs, values):
         ax.set_rlim(0, 90)
         ax.set_rticks([0, 30, 60, 90])
         ax.set_yticklabels(["90°", "60°", "30°", "0°"], fontsize=5)
-        tex.figure(savefig(fig, out, "skyplot", tex), "PVT: sky plot of the GPS satellites in the gnss\\_spp.py dual-frequency "
+        tex.figure(savefig(fig, out, "skyplot", tex), "PVT: sky plot of the GPS satellites in the gnss\\_spp\\_lib.py dual-frequency "
                    "solution (azimuth, elevation) during the recording.", width=0.45)
     tex.table_t(["Solution", "Solutions", "Run with fix [\\%]", "Mean E / N / U [m]", "Std E / N / U [m]", "RMS 2-D [m]",
                "RMS 3-D [m]", "95\\% horiz. [m]"], [stats_row(l, e, t, n_total) for l, e, t in sols],
               "PVT: position error statistics with respect to the surveyed antenna (mean = accuracy, std = "
               "precision; \\% of the run's seconds with a position; gnss-sdr outputs several solutions per second, "
-              "gnss\\_spp.py computes one per second).")
+              "gnss\\_spp\\_lib.py computes one per second).")
 
 
 # ------------------------------------------------------------------------------------------------------- main

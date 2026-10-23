@@ -89,6 +89,7 @@ def sat_position(e, t):
         ecc_anom = m + e["ecc"] * np.sin(ecc_anom)
     nu = np.arctan2(np.sqrt(1 - e["ecc"] ** 2) * np.sin(ecc_anom), np.cos(ecc_anom) - e["ecc"])
     phi = nu + e["omega"]
+    # second-harmonic corrections to the satellite's orbit, computed exactly as the GPS standard IS-GPS-200 specifies
     du = e["Cus"] * np.sin(2 * phi) + e["Cuc"] * np.cos(2 * phi)
     dr = e["Crs"] * np.sin(2 * phi) + e["Crc"] * np.cos(2 * phi)
     di = e["Cis"] * np.sin(2 * phi) + e["Cic"] * np.cos(2 * phi)
@@ -287,20 +288,25 @@ def enu_errors(epochs, ref_llh):
 
 if __name__ == "__main__":
     import argparse
+    import re
     import sys
-
-    sys.path.insert(0, str(Path(__file__).parent))
-    from compare_pseudoranges import channel_counts
 
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("run_dir", type=Path)
     p.add_argument("--ref", type=float, nargs=3, default=[-23.209433, -45.874875, 596.42], help="lat lon h")
     a = p.parse_args()
-    n_1c, band, n_2 = channel_counts(a.run_dir)
-    code = {"L2C": "2S", "L5": "L5"}[band]
-    obs = load_observables(a.run_dir / "observables.mat", n_1c + n_2)
+    # signal code of every channel, from the run's config (gnss-sdr numbers channels 1C, 2S, L5, 1B, 5X in turn)
+    conf = next(a.run_dir.glob("*.conf")).read_text()
+    bands = []
+    for sig in ("1C", "2S", "L5", "1B", "5X"):
+        m = re.search(rf"^Channels_{sig}\.count=(\d+)", conf, re.M)
+        bands += [sig] * (int(m.group(1)) if m else 0)
+    code = next((sig for sig in ("L5", "2S") if sig in bands), None)
+    if "1C" not in bands or code is None:
+        sys.exit("error: needs GPS L1 C/A and L5 or L2C channels")
+    band = {"L5": "L5", "2S": "L2C"}[code]
+    obs = load_observables(a.run_dir / "observables.mat", len(bands))
     eph = load_lnav_ephemeris(a.run_dir / "gps_ephemeris.xml")
-    bands = ["1C"] * n_1c + [code] * n_2
     for label, sb, sm in (("L1 only", None, 0), (f"iono-free L1+{band}, raw", code, 0),
                           (f"iono-free L1+{band}, smoothed {SMOOTH_S:g} s", code, SMOOTH_S)):
         sols = solve(obs, bands, eph, second_band=sb, smooth_s=sm)
