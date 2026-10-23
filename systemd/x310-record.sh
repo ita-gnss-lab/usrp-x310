@@ -17,8 +17,9 @@
 #      lasts, so samples would drop; bundling happens after recording, when that
 #      no longer matters. If the NAS is not mounted, the archive is built in
 #      staging and moved by move_to_nas on a later run.
-#   7. processes the new recording with GNSS-SDR (run_gnss_sdr.sh --report, with the profile's config) and turns
-#      every receiver stage's outputs into figures/tables in report/gnss_sdr/<name>/ (gnss_sdr_out2tex.py)
+#   7. processes the new recording with GNSS-SDR (run_gnss_sdr.sh --report, with the profile's config, plus a second
+#      Galileo E1 + E5a run for the 1st recording) and turns every receiver stage's outputs into figures/tables in
+#      report/gnss_sdr/<name>/ (gnss_sdr_out2tex.py)
 #   8. adds the recording (metadata table + those GNSS-SDR results) to report/main.tex and recompiles the PDF
 #      (update_report.py); the 15-day x310-report.service only sends that PDF by WhatsApp
 #   Steps 7-8 are never fatal: a failure leaves the recording itself untouched and is only logged
@@ -56,22 +57,38 @@ PROFILES=("--freq 1575.42e6 1176.45e6 --gain 25 25 --int8-div 1 3"
           "--freq 1575.42e6 1227.6e6 --gain 25 25")
 PROFILE_CONFS=("l1ca8bits4msps_l5_8bits20msps.conf" "l1ca16bits4msps_l2c16bits4msps.conf")
 PROFILE_NAMES=("GPS L1 C/A + L5, 8-bit" "GPS L1 C/A + L2C, 16-bit")
+# a second gnss-sdr run of the same recording ("" = none): the 1st recording's L1/L5 bands also hold Galileo E1/E5a,
+# whose dual-frequency (Iono-Free-LC) position gnss-sdr computes itself; the 2nd profile's config tracks Galileo E1
+# beside GPS in its single run
+PROFILE_EXTRA_CONFS=("galileo_e1_8bits4msps_e5a_8bits20msps.conf" "")
+PROFILE_EXTRA_TAGS=("galileo" "")
+PROFILE_EXTRA_TITLES=("Galileo E1 + E5a" "")
 REPORT_DIR="$REPO_DIR/report/gnss_sdr"
 
 # Process recording $1 (archive path) with gnss-sdr config $2, write its report figures/tables, and drop the bulky
 # per-stage dumps afterwards (tracking/telemetry dumps are ~1 GB per run; the figures keep what they showed).
+# Optional $3/$4 (tag, title): a further run of the same recording, to gnss_sdr_output/<name>_<tag>/ and
+# report/gnss_sdr/<name>/results_<tag>.tex, with gnss-sdr's own PVT as configured (no --l1-pvt).
 process_recording() {
-    local archive=$1 conf=$2 name
+    local archive=$1 conf=$2 tag=${3:-} title=${4:-} name run log
+    local -a run_args=(--l1-pvt) tex_args=()
     name=$(basename "$archive" .sigmf)
+    run=$name
+    if [[ -n "$tag" ]]; then
+        run=${name}_$tag
+        run_args=(--out-suffix "_$tag")
+        tex_args=(--tag "$tag" --title "$title")
+    fi
+    log="$STATE_DIR/gnss-sdr-$run.log"
     echo "processing $name with GNSS-SDR ($conf) ..."
-    "$REPO_DIR/run_gnss_sdr.sh" --conf "$REPO_DIR/$conf" --report --l1-pvt "$archive" > "$STATE_DIR/gnss-sdr-$name.log" 2>&1 \
-        || { echo "warning: GNSS-SDR processing of $name failed; see $STATE_DIR/gnss-sdr-$name.log"; return 0; }
-    "$UV_BIN" run gnss_sdr_out2tex.py "$REPO_DIR/gnss_sdr_output/$name" --recording "$archive" \
-        --out "$REPORT_DIR/$name" --tex-root "$REPO_DIR/report" \
-        || { echo "warning: report figures of $name failed"; return 0; }
-    find "$REPO_DIR/gnss_sdr_output/$name" -maxdepth 1 \( -name 'trk_*' -o -name 'tlm_*' -o -name 'acq_*.mat' \
+    "$REPO_DIR/run_gnss_sdr.sh" --conf "$REPO_DIR/$conf" --report "${run_args[@]}" "$archive" > "$log" 2>&1 \
+        || { echo "warning: GNSS-SDR processing of $name ($conf) failed; see $log"; return 0; }
+    "$UV_BIN" run gnss_sdr_out2tex.py "$REPO_DIR/gnss_sdr_output/$run" --recording "$archive" \
+        --out "$REPORT_DIR/$name" --tex-root "$REPO_DIR/report" "${tex_args[@]}" \
+        || { echo "warning: report figures of $run failed"; return 0; }
+    find "$REPO_DIR/gnss_sdr_output/$run" -maxdepth 1 \( -name 'trk_*' -o -name 'tlm_*' -o -name 'acq_*.mat' \
         -o -name '*.dat' \) -delete
-    echo "GNSS-SDR results of $name in $REPORT_DIR/$name"
+    echo "GNSS-SDR results of $run in $REPORT_DIR/$name"
 }
 
 # Move every finished archive from staging to the NAS. rsync writes each file under a hidden
@@ -173,6 +190,10 @@ archive="$NAS_DIR/$name.sigmf"
 [[ -f "$archive" ]] || archive="$STAGING_DIR/$name.sigmf"
 if [[ -f "$archive" ]]; then
     process_recording "$archive" "${PROFILE_CONFS[count]}"
+    if [[ -n "${PROFILE_EXTRA_CONFS[count]}" ]]; then
+        process_recording "$archive" "${PROFILE_EXTRA_CONFS[count]}" "${PROFILE_EXTRA_TAGS[count]}" \
+            "${PROFILE_EXTRA_TITLES[count]}"
+    fi
     # 8. add it to the report and recompile (with its GNSS-SDR results if step 7 produced them)
     "$UV_BIN" run update_report.py "$archive" --recordings-dir "$NAS_DIR" --tex-path "$REPO_DIR/report/main.tex" \
         || echo "warning: adding $name to the report failed"

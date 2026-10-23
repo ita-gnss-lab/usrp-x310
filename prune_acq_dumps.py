@@ -64,7 +64,11 @@ def prune_pass(run_dir, keep, kept, writer, final):
         m = NAME_RE.match(path.name)
         if not m or any(path == p for grids in kept.values() for _, p in grids):
             continue
-        if not final and now - path.stat().st_mtime < SETTLE_SEC:
+        try:
+            is_settling = now - path.stat().st_mtime < SETTLE_SEC
+        except FileNotFoundError:  # gone since the glob (seen on Galileo runs)
+            continue
+        if not final and is_settling:
             continue
         try:
             row = read_row(path, m)

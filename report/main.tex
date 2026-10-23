@@ -69,7 +69,7 @@ The recording is computed automatically by a Linux service which is driven by th
     \end{itemize}
     % TODO: REMOVE SUCH RECORDINGS ONCE WE HAVE ENOUGH DATA WITH THE NEW CONFIG Records made before 17/10/2026 used 2~MS/s in both channels; records made before 22/10/2026 were all GPS L1/L5.
     \item For each recording a SigMF archive file is created, with the interleaved I/Q samples + metadata, like number of channels (dual channel recording), frequencies, sampling rate, gain, sample type, etc. Each channel has its own configuration, so the metadata of each channel is reported separately.
-    \item Each recording is processed by the GNSS-SDR software receiver right after it is made, and the outputs of every receiver stage are added under the recording in Section~\ref{part:recordings} (see Section~\ref{sec:gnss-sdr}). % FIXME: maybe put this into one section?
+    \item Each recording is processed by the GNSS-SDR software receiver right after it is made, and the outputs of every receiver stage are added under the recording in Section~\ref{part:recordings} (see Section~\ref{sec:gnss-sdr}). Galileo E1 shares GPS L1's 1575.42~MHz and Galileo E5a GPS L5's 1176.45~MHz, so the recordings also hold Galileo: the first recording is processed twice (GPS L1 C/A + L5, then Galileo E1 + E5a), and the second once, with GPS L1 C/A, L2C and Galileo E1 together. % FIXME: maybe put this into one section?
     \item After 15 days of records from the last report. Rubem will send an automatic message to header of the Laboratory, Prof. Dr. Felix Antreich, via WhatsApp with the summarized information from all recorded metadata;
 \end{itemize}
 
@@ -186,7 +186,13 @@ A recording is only useful if a GNSS receiver can use it: find the satellites in
   \label{fig:gnss-sdr-chain}
 \end{figure}
 
-\paragraph{Processing setup.} Both channels of a recording are read by one \texttt{Multichannel\_File\_Signal\_Source}, so the two bands advance in lockstep (with one independent source per band, one band runs ahead of the other and its measurements are discarded). That source reads both files at one rate: the 4~MS/s L1 C/A file of the L1/L5 recordings is upsampled 5 times (each sample repeated) to the 20~MS/s of L5 before GNSS-SDR. GNSS-SDR v0.0.20 computes its own position from L1 C/A only (broadcast ionosphere model): its dual-frequency solver ignores L2C altogether and was unstable with L5 on these recordings. The ionosphere-free, dual-frequency positioning is therefore computed outside GNSS-SDR's output, but using its observables and decoded ephemeris to generate our own single-point positioning (\texttt{gnss\_spp.py}).
+\paragraph{Processing setup.} Both channels of a recording are read by one \texttt{Multichannel\_File\_Signal\_Source}, so the two bands advance in lockstep (with one independent source per band, one band runs ahead of the other and its measurements are discarded). That source reads both files at one rate: the 4~MS/s L1 C/A file of the L1/L5 recordings is upsampled 5 times (each sample repeated) to the 20~MS/s of L5 before GNSS-SDR. GNSS-SDR v0.0.20's position (RTKLIB, single point) is computed per run as follows:
+\begin{itemize}
+  \item \textbf{First recording, GPS run} (GPS L1 C/A + L5): from L1 C/A only (broadcast ionosphere model), since its dual-frequency solver was unstable with the few L5-capable GPS satellites in view. The ionosphere-free GPS L1 C/A + L5 position is computed outside GNSS-SDR, from its observables and decoded ephemeris, with our own single-point positioning (\texttt{gnss\_spp.py}).
+  \item \textbf{First recording, Galileo run} (Galileo E1-B/C + E5a): GNSS-SDR's own dual-frequency, ionosphere-free (\texttt{Iono-Free-LC}) position. Every Galileo satellite broadcasts both E1 and E5a, so all satellites in view count, unlike GPS L5.
+  \item \textbf{Second recording} (GPS L1 C/A + L2C + Galileo E1-B/C): GNSS-SDR's own single-frequency, multi-constellation position from GPS L1 C/A and Galileo E1 together (broadcast ionosphere model; RTKLIB estimates the GPS--Galileo clock offset). GNSS-SDR's solver ignores L2C, so the ionosphere-free GPS L1 C/A + L2C position again comes from \texttt{gnss\_spp.py}.
+\end{itemize}
+The Galileo run's stages are reported after the GPS run's, with ``(Galileo E1 + E5a)'' in their headings; its signal source is the same recording, so that stage is not repeated.
 
 \subsection{Signal source}
 Reads the recorded I/Q samples (here, the SigMF data files) and delivers them as a stream, one per channel. GNSS-SDR has no output of its own here, so the recording itself is examined.
@@ -203,7 +209,7 @@ Adapts the samples to what the channels process: converts the file format (signe
 \end{itemize}
 
 \subsection{Acquisition}
-Detects which satellites are present and gives a first, coarse estimate of each one's code delay and Doppler shift, by correlating the signal with the satellite's spreading code over a two-dimensional grid of delays and Doppler frequencies, and comparing the peak with a detection threshold (set by the probability of false alarm). With dual-frequency assistance, the second band (L5 or L2C) is only searched for satellites already tracked on L1, around their L1 Doppler scaled to the second frequency.
+Detects which satellites are present and gives a first, coarse estimate of each one's code delay and Doppler shift, by correlating the signal with the satellite's spreading code over a two-dimensional grid of delays and Doppler frequencies, and comparing the peak with a detection threshold (set by the probability of false alarm). With dual-frequency assistance, the second band (GPS L5 or L2C, Galileo E5a) is only searched for satellites already tracked on L1/E1, around their L1/E1 Doppler scaled to the second frequency. Galileo E1 uses a 4-ms code (BOC(1,1) modulation), so its correlation peak is narrower and has side peaks.
 \begin{itemize}
   \item \textbf{Delay--Doppler map} (surface plot) of the strongest detection per band: a single sharp peak well above the floor.
   \item \textbf{Table}: search attempts, detections and detected satellites, and the best test statistic relative to the threshold. Attempts on satellites that are not in view, or that do not broadcast that band (L5 is only on Block IIF and III satellites, L2C on IIR-M, IIF and III), are rejected.
@@ -213,7 +219,7 @@ Detects which satellites are present and gives a first, coarse estimate of each 
 Follows each detected signal with a delay-lock loop (code) and a phase-lock loop (carrier), producing every 1--20~ms the prompt correlator output (which carries the navigation data bits), the carrier-to-noise density ratio $C/N_0$, the Doppler, the code, and carrier phases.
 \begin{itemize}
   \item \textbf{$C/N_0$ and Doppler versus time} per satellite and band: $C/N_0$ of roughly 35--50~dB-Hz for an open-sky antenna, and smooth Doppler curves following the satellite motion.
-  \item \textbf{Prompt I/Q scatter} of the strongest satellite per band: with the carrier phase locked, the energy sits on the in-phase axis in two clusters (the $\pm1$ data bits); without phase lock it would be a ring. Each point is one prompt correlator output, the received samples $x[n]$ multiplied by the local code replica $c$ aligned at the estimated code delay $\hat\tau$ and by the local carrier replica (estimated Doppler $\hat f_D$ and phase $\hat\phi$), summed over the $N$ samples of one integration period ($T_s$: sampling period):
+  \item \textbf{Prompt I/Q scatter} of the strongest satellite per band: with the carrier phase locked, the energy sits on the in-phase axis in two clusters (the $\pm1$ data bits), or in a single cluster for the dataless pilot components that Galileo is tracked on (E1-C, E5a-Q); without phase lock it would be a ring. Each point is one prompt correlator output, the received samples $x[n]$ multiplied by the local code replica $c$ aligned at the estimated code delay $\hat\tau$ and by the local carrier replica (estimated Doppler $\hat f_D$ and phase $\hat\phi$), summed over the $N$ samples of one integration period ($T_s$: sampling period):
   \begin{equation}
     P = \sum_{n=1}^{N} x[n]\,c[n-\hat\tau]\,e^{-j(2\pi \hat f_D n T_s + \hat\phi)} = I + jQ.
   \end{equation}
@@ -221,7 +227,7 @@ Follows each detected signal with a delay-lock loop (code) and a phase-lock loop
 \end{itemize}
 
 \subsection{Telemetry decoder}
-Synchronizes to the navigation-message bits and frames, checks their parity/CRC (Cyclic Redundancy Check), decodes the ephemeris (orbit and satellite clock), and time-stamps every measurement with the satellite's transmit time (time of week). L1 C/A carries the legacy LNAV message (6-s subframes); L2C and L5 carry CNAV (12-s and 6-s messages).
+Synchronizes to the navigation-message bits and frames, checks their parity/CRC (Cyclic Redundancy Check), decodes the ephemeris (orbit and satellite clock), and time-stamps every measurement with the satellite's transmit time (time of week). GPS L1 C/A carries the legacy LNAV message (6-s subframes); L2C and L5 carry CNAV (12-s and 6-s messages). Galileo E1-B carries I/NAV (2-s pages) and E5a-I F/NAV (10-s pages).
 \begin{itemize}
   \item \textbf{Timeline} per band and satellite of when a valid transmit time was available.
   \item \textbf{Table}: messages decoded, ephemeris obtained, and when the first valid time of week came.
@@ -231,15 +237,15 @@ Synchronizes to the navigation-message bits and frames, checks their parity/CRC 
 Aligns all channels on common receiver epochs and forms, for each satellite and band, the pseudorange (from transmit and receive times), the accumulated carrier phase and the Doppler. These are the measurements a positioning algorithm uses; GNSS-SDR also writes them to a RINEX observation file.
 \begin{itemize}
   \item \textbf{Availability} of valid pseudoranges per band and satellite over the recording.
-  \item \textbf{Second band minus L1 pseudorange} per satellite: the same constant for every satellite (the receiver's inter-band hardware bias) plus the slowly varying, satellite-dependent ionospheric delay difference (metres). It proves that both bands measure the same satellites consistently.
+  \item \textbf{Second band minus L1/E1 pseudorange} per satellite: the same constant for every satellite (the receiver's inter-band hardware bias) plus the slowly varying, satellite-dependent ionospheric delay difference (metres). It proves that both bands measure the same satellites consistently.
   \item \textbf{Table} per satellite: common epochs, mean, standard deviation and drift of that difference.
 \end{itemize}
 
 \subsection{PVT}
 Computes position, velocity and receiver clock (PVT) from the pseudoranges and the decoded ephemeris. The antenna position was surveyed: $-23.209433^\circ$, $-45.874875^\circ$, 596.42~m (WGS-84), so the errors below are true errors, not just scatter.
 \begin{itemize}
-  \item \textbf{Horizontal error scatter and east/north/up error versus time} for GNSS-SDR's L1 C/A solution and for the dual-frequency ionosphere-free solution. Single-frequency single-point positioning is expected to stay within a few metres horizontally and ${\sim}10$~m vertically; the iono-free combination removes the ionospheric bias but amplifies the code noise about three times.
-  \item \textbf{Sky plot} of the satellites used.
+  \item \textbf{Horizontal error scatter and east/north/up error versus time} for GNSS-SDR's own solution of each run and, for the GPS runs, \texttt{gnss\_spp.py}'s dual-frequency ionosphere-free solution. Single-frequency single-point positioning is expected to stay within a few metres horizontally and ${\sim}10$~m vertically; the iono-free combination removes the ionospheric bias but amplifies the code noise about three times.
+  \item \textbf{Sky plot} of the GPS satellites used by \texttt{gnss\_spp.py}.
   \item \textbf{Table}: mean error (accuracy), standard deviation (precision), 2-D and 3-D RMS, and 95\% horizontal error.
 \end{itemize}
 
@@ -415,12 +421,59 @@ Computes position, velocity and receiver clock (PVT) from the pseudoranges and t
     \hline
     Recorder & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{UHD Python API} \\
     \hline
-    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}} \\
+    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}, \texttt{galileo\_e1\_8bits4msps\_e5a\_8bits20msps.conf}} \\
     \hline
   \end{tabular}
   \caption{Metadata for recording \texttt{x310\_20261022T190000Z}, captured starting 2026-10-22T19:00:06.973177Z.}
 \end{table}
 
 \input{gnss_sdr/x310_20261022T190000Z/results.tex}
+\input{gnss_sdr/x310_20261022T190000Z/results_galileo.tex}
+
+
+\subsection{Second record}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{Parameter} & \textbf{Channel 0} & \textbf{Channel 1} \\
+    \hline
+    Start time & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{2026-10-22 19:30:07 UTC} \\
+    \hline
+    Frequency & 1575.420 MHz (L1) & 1227.600 MHz (L2) \\
+    \hline
+    Duration & 300.0 s & 300.0 s \\
+    \hline
+    Sample rate & 4.000 MS/s & 4.000 MS/s \\
+    \hline
+    Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 16-bit samples (I+Q), little-endian, as received from the X310 (sc16)} \\
+    \hline
+    Gain & 25.0 dB & 25.0 dB \\
+    \hline
+    Antenna & RX1 & RX2 \\
+    \hline
+    File size & 4800.0 MB & 4800.0 MB \\
+    \hline
+    Samples written & 1,200,000,000 & 1,200,000,000 \\
+    \hline
+    Lost samples & 0 & 0 \\
+    \hline
+    Clock source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{external} \\
+    \hline
+    Time source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{internal} \\
+    \hline
+    Motherboard & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{USRP X310} \\
+    \hline
+    Daughterboard & TwinRX RX0 & TwinRX RX1 \\
+    \hline
+    Recorder & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{UHD Python API} \\
+    \hline
+    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca16bits4msps\_l2c16bits4msps.conf}} \\
+    \hline
+  \end{tabular}
+  \caption{Metadata for recording \texttt{x310\_20261022T193000Z}, captured starting 2026-10-22T19:30:07.040026Z.}
+\end{table}
+
+\input{gnss_sdr/x310_20261022T193000Z/results.tex}
 
 \end{document}

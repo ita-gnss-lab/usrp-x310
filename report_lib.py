@@ -89,7 +89,7 @@ def tex_escape(text):
 def session_subsection_tex(session, record_number, tex_dir=Path("report")):
     """Build one '\\subsection{...}' + metadata table for a single recording session, followed by its GNSS-SDR
     results (\\input of gnss_sdr/<name>/results.tex, written by gnss_sdr_out2tex.py after the recording was
-    processed) when tex_dir has them."""
+    processed, then of any results_<tag>.tex of further runs, e.g. results_galileo.tex) when tex_dir has them."""
     g0 = session["channels"][0][1]["global"]
     cap0 = session["channels"][0][1]["captures"][0]
     start_str = session["datetime"].strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -134,9 +134,11 @@ def session_subsection_tex(session, record_number, tex_dir=Path("report")):
         f"Daughterboard & {daughterboard_row} \\\\",
         f"Recorder & {span}{{{tex_escape(g0['core:recorder'])}}} \\\\",
     ]
-    conf_file = tex_dir / "gnss_sdr" / session["name"] / "gnss_sdr_conf.txt"  # written by gnss_sdr_out2tex.py
-    if conf_file.exists():
-        rows.append(f"GNSS-SDR configuration & {span}{{\\texttt{{{tex_escape(conf_file.read_text().strip())}}}}} \\\\")
+    # written by gnss_sdr_out2tex.py: gnss_sdr_conf.txt for the first run, gnss_sdr_conf_<tag>.txt for further runs
+    conf_files = sorted((tex_dir / "gnss_sdr" / session["name"]).glob("gnss_sdr_conf*.txt"))
+    if conf_files:
+        confs = ", ".join(f"\\texttt{{{tex_escape(f.read_text().strip())}}}" for f in conf_files)
+        rows.append(f"GNSS-SDR configuration & {span}{{{confs}}} \\\\")
 
     lines = [
         f"\\subsection{{{ordinal(record_number)} record}}",
@@ -156,9 +158,11 @@ def session_subsection_tex(session, record_number, tex_dir=Path("report")):
         f"captured starting {cap0['core:datetime']}.}}",
         r"\end{table}",
     ]
-    results = Path("gnss_sdr") / session["name"] / "results.tex"
-    if (tex_dir / results).exists():
-        lines += ["", f"\\input{{{results.as_posix()}}}"]
+    results_dir = tex_dir / "gnss_sdr" / session["name"]
+    # the first run's results.tex sorts before results_<tag>.tex
+    results = sorted(results_dir.glob("results*.tex"), key=lambda f: (f.name != "results.tex", f.name))
+    if results:
+        lines += [""] + [f"\\input{{{f.relative_to(tex_dir).as_posix()}}}" for f in results]
     else:
         lines += ["", r"\textit{GNSS-SDR processing of this recording is not available.}"]
     return "\n".join(lines)

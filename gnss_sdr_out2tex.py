@@ -12,8 +12,14 @@ section, written to <out>/results.tex (\\input under the recording's metadata ta
 Every element is optional: a missing GNSS-SDR output becomes a "not produced" line instead of a LaTeX error, so
 the report always compiles and shows how far the receiver got.
 
-Example:
+A second run of the same recording with another configuration (e.g. Galileo E1 + E5a next to the GPS L1/L5 run) is
+written with --tag: its figures are prefixed <tag>_, its block goes to results_<tag>.tex, every stage heading gets
+--title appended, and the signal-source stage (the same raw recording as the first run) is skipped.
+
+Examples:
   uv run gnss_sdr_out2tex.py gnss_sdr_output/x310_20261021T193000Z --recording recordings/x310_20261021T193000Z.sigmf
+  uv run gnss_sdr_out2tex.py gnss_sdr_output/x310_20261022T190000Z_galileo --recording \\
+      recordings/x310_20261022T190000Z.sigmf --tag galileo --title "Galileo E1 + E5a"
 """
 
 import argparse
@@ -36,9 +42,14 @@ from gnss_spp import enu_errors, load_lnav_ephemeris, solve  # noqa: E402
 from report_lib import tex_escape  # noqa: E402
 
 ANTENNA_LLH = (-23.209433, -45.874875, 596.42)  # surveyed antenna position (lat, lon [deg], h [m]), GNSS lab ITA
-BAND_LABEL = {"1C": "L1 C/A", "2S": "L2C", "L5": "L5"}
-BAND_FREQ_MHZ = {"1C": 1575.42, "2S": 1227.60, "L5": 1176.45}
-CHIP_RATE = {"1C": 1.023e6, "2S": 1.023e6, "L5": 10.23e6}
+# gnss-sdr signal codes, in its channel order
+SIGNALS = ("1C", "2S", "L5", "1B", "5X")
+BAND_LABEL = {"1C": "GPS L1 C/A", "2S": "GPS L2C", "L5": "GPS L5", "1B": "Galileo E1", "5X": "Galileo E5a"}
+BAND_FREQ_MHZ = {"1C": 1575.42, "2S": 1227.60, "L5": 1176.45, "1B": 1575.42, "5X": 1176.45}
+CHIP_RATE = {"1C": 1.023e6, "2S": 1.023e6, "L5": 10.23e6, "1B": 1.023e6, "5X": 10.23e6}
+BAND_COLOR = {"1C": "C0", "2S": "C2", "L5": "C1", "1B": "C3", "5X": "C4"}
+# dual-frequency pairs (first band, second band) whose pseudorange difference the observables stage shows
+BAND_PAIRS = (("1C", "L5"), ("1C", "2S"), ("1B", "5X"))
 LOCK_OK = 0.8  # carrier lock test (cos 2*phase error) above which the PLL is counted as phase-locked
 SOURCE_SECONDS = 0.5  # raw samples analysed per channel for the signal-source stage
 SOURCE_OFFSET_S = 10.0  # ... starting this far into the recording
@@ -53,6 +64,9 @@ def parse_args():
     p.add_argument("--out", type=Path, default=None, help="output directory (default: report/gnss_sdr/<name>)")
     p.add_argument("--tex-root", type=Path, default=Path("report"),
                    help="directory main.tex is compiled in; figure paths in results.tex are relative to it")
+    p.add_argument("--tag", default="", help="second run of the same recording: prefix of its figures and "
+                   "results_<tag>.tex; the signal-source stage is skipped (default: none, the recording's first run)")
+    p.add_argument("--title", default="", help="appended to every stage heading of this run, e.g. 'Galileo E1 + E5a'")
     return p.parse_args()
 
 
@@ -74,9 +88,9 @@ def conf_values(run_dir):
 
 
 def bands_of(values):
-    """[(signal code, first channel, n channels)] in gnss-sdr's channel order (1C, 2S, L5)."""
+    """[(signal code, first channel, n channels)] in gnss-sdr's channel order (SIGNALS)."""
     out, first = [], 0
-    for sig in ("1C", "2S", "L5"):
+    for sig in SIGNALS:
         n = int(values.get(f"Channels_{sig}.count", 0))
         if n:
             out.append((sig, first, n))
@@ -92,28 +106,32 @@ def band_of_channel(bands, ch):
 
 
 CONF_NAME_FILE = "gnss_sdr_conf.txt"  # name of the gnss-sdr configuration the recording was processed with
+# (gnss_sdr_conf_<tag>.txt for a --tag run)
 FIG_DPI = 200  # raster figures: vector PDFs of plots with ~10^4-10^5 points made the report too heavy to render
 
 
-def fig_path(out, name):
-    return out / f"{name}.png"
+def fig_path(out, name, tag=""):
+    return out / (f"{tag}_{name}.png" if tag else f"{name}.png")
 
 
 def savefig(fig, out, name, tex):
-    fig.savefig(fig_path(out, name), dpi=FIG_DPI)
+    path = fig_path(out, name, tex.tag)
+    fig.savefig(path, dpi=FIG_DPI)
     plt.close(fig)
-    return fig_path(out, name).relative_to(tex.root).as_posix()
+    return path.relative_to(tex.root).as_posix()
 
 
 class Tex:
     """Collects results.tex: one subsubsection per stage, with its figures and tables."""
 
-    def __init__(self, root, name):
-        self.root, self.name, self.lines = root, name, []
+    def __init__(self, root, name, tag="", title=""):
+        self.root, self.name, self.tag, self.title, self.lines = root, name, tag, title, []
 
     def para(self, title, text=""):
-        """One receiver stage: a \\subsubsection under the recording's \\subsection (title without its final dot)."""
-        self.lines += [f"\\subsubsection{{{title.rstrip('.')}}}", text, ""]
+        """One receiver stage: a \\subsubsection under the recording's \\subsection (title without its final dot,
+        plus this run's --title, e.g. 'Acquisition (Galileo E1 + E5a)')."""
+        heading = title.rstrip(".") + (f" ({self.title})" if self.title else "")
+        self.lines += [f"\\subsubsection{{{heading}}}", text, ""]
 
     def text(self, text):
         self.lines += [text, ""]
@@ -138,7 +156,7 @@ class Tex:
         self.lines += ["    " + " & ".join(str(c) for c in row) + r" \\" for row in rows]
         self.lines += [r"    \hline", r"  \end{tabular}}", f"  \\caption{{{caption}}}", r"\end{table}", ""]
 
-    def table_t(self, header, rows, caption, span_rows=(), col_width="3.8cm"):
+    def table_t(self, header, rows, caption, span_rows=(), col_width="4.2cm"):
         """table() transposed: one row per quantity (header[1:]), one column per item (rows' first cells), for
         tables with few items but many quantities, which would be too wide the other way round. Each item column is
         col_width wide, centred, and wraps longer text onto more lines."""
@@ -198,27 +216,32 @@ def stage_source(tex, out, archive, metas, bands):
         ax = axes[i, 1]
         v = np.concatenate([x.real, x.imag])
         sd = v.std()
-        # whole integer range, so the clipping limits (red) show how much headroom the noise leaves
+        # The samples are integers, so their distribution is a probability mass function (PMF): the fraction of
+        # samples taking each integer value. Shown over the whole integer range, so the clipping limits (red) show
+        # how much headroom the noise leaves
         lim = 1.08 * full
-        if g["core:datatype"] == "ci8":
-            bins = np.arange(-full - 1.5, full + 1.5)  # one bin per integer value
-        else:
-            # 16-bit: the noise (std of tens) is tiny next to +-32767, so a symmetric-log x axis (linear within
-            # +-5 std, logarithmic beyond) shows both its shape and the limits; bins follow that scale
-            half = np.unique(np.round(np.concatenate([np.arange(0.5, 5 * sd, max(1.0, sd / 10)),
-                                                      np.geomspace(5 * sd, lim, 120)])))
-            bins = np.unique(np.concatenate([-half[::-1], half]))  # strictly increasing edges
-        ax.hist(x.real, bins=bins, density=True, alpha=0.6, label="I")
-        # Q as a dashed outline: it overlaps I almost exactly, and a second filled histogram would hide it
-        ax.hist(x.imag, bins=bins, density=True, histtype="step", ls="--", lw=1.0, color="C1", label="Q")
-        t = np.unique(np.concatenate([np.linspace(-lim, lim, 2000), np.linspace(-6 * sd, 6 * sd, 1000)]))
-        ax.plot(t, np.exp(-t ** 2 / (2 * sd ** 2)) / (sd * np.sqrt(2 * np.pi)), "k", lw=0.8, label="Gaussian")
+        for comp, label, style in ((x.real, "I", "bar"), (x.imag, "Q", "step")):
+            k, n = np.unique(comp.astype(np.int64), return_counts=True)
+            pmf = n / comp.size
+            if style == "bar":
+                ax.bar(k, pmf, width=1.0, alpha=0.6, color="C0", label=label)
+            else:  # Q as a dashed outline: it overlaps I almost exactly, a second filled one would hide it
+                ax.step(k, pmf, where="mid", ls="--", lw=1.0, color="C1", label=label)
+        # Gaussian reference, as a PMF: its density at each integer (bins of width 1)
+        k = np.arange(-int(min(full, 6 * sd)), int(min(full, 6 * sd)) + 1)
+        ax.plot(k, np.exp(-k ** 2 / (2 * sd ** 2)) / (sd * np.sqrt(2 * np.pi)), "k", lw=0.8, label="Gaussian")
         for edge in (-full, full):
             ax.axvline(edge, color="red", lw=0.8, label=f"clipping ($\\pm${full})" if edge > 0 else None)
         if g["core:datatype"] != "ci8":
+            # 16-bit: the noise (std of tens) is tiny next to +-32767, so a symmetric-log x axis (linear within
+            # +-5 std, logarithmic beyond) shows both its shape and the limits
             ax.set_xscale("symlog", linthresh=5 * sd)
-        ax.set(xlabel="sample value", ylabel="density", title=f"ch{ch} I/Q histogram", xlim=(-lim, lim))
-        ax.legend(fontsize=6)
+        ax.set(xlabel="sample value", ylabel="probability", title=f"ch{ch} I/Q probability mass function",
+               xlim=(-lim, lim))
+        handles, labels = ax.get_legend_handles_labels()
+        order = sorted(range(len(labels)), key=lambda j: ["I", "Q", "Gaussian"].index(labels[j])
+                       if labels[j] in ("I", "Q", "Gaussian") else 3)  # bars are listed last by default
+        ax.legend([handles[j] for j in order], [labels[j] for j in order], fontsize=6)
         clip = np.mean(np.abs(v) >= full) * 100
         bytes_per = {"ci8": 2, "ci16_le": 4}[g["core:datatype"]]
         rows.append([f"ch{ch}", f"{freq:.2f}", f"{fs / 1e6:g}", tex_escape(g["core:datatype"]),
@@ -230,8 +253,8 @@ def stage_source(tex, out, archive, metas, bands):
     fig.tight_layout()
     rel = savefig(fig, out, "source", tex)
     tex.figure(rel, "Signal source: power spectral density (the receiver passband over a flat thermal-noise floor; "
-               "GNSS signals are below the noise, so only interference would stand out) and I/Q histograms "
-               "(Gaussian noise, centred, not clipped).")
+               "GNSS signals are below the noise, so only interference would stand out) and probability mass "
+               "functions of the integer I/Q sample values (Gaussian noise, centred, not clipped).")
     tex.table_t(["Channel", "Frequency [MHz]", "Rate [MS/s]", "Format", "Bytes per complex sample", "Full scale",
                  "Gain [dB]", "Std I / Q", "Mean I / Q", "Min / max I", "Min / max Q", "Headroom (full scale / std)",
                  "Clipped [\\%]", "Lost samples"], rows,
@@ -244,7 +267,9 @@ def stage_conditioner(tex, values, metas, bands):
     tex.para("Signal conditioner.")
     internal = float(values.get("GNSS-SDR.internal_fs_sps", 0))
     rows = []
-    for i, (sig, _, _) in enumerate(bands):
+    for i in sorted(metas):
+        # every band read from this file, e.g. GPS L1 C/A and Galileo E1 from the L1 one
+        file_bands = [sig for sig, first, _ in bands if int(values.get(f"Channel{first}.RF_channel_ID", 0)) == i]
         g = metas[i]["global"]
         fs = g["core:sample_rate"]
         item = values.get("SignalSource.item_type", values.get(f"SignalSource{i}.item_type", "?"))
@@ -252,7 +277,7 @@ def stage_conditioner(tex, values, metas, bands):
         resamp = values.get(f"Resampler{i}.implementation", "?")
         up = (f"$\\times${k} zero-order hold, offline (\\texttt{{upsample\\_iq.py}})"
               if k > 1 and resamp == "Pass_Through" else resamp)
-        rows.append([f"ch{i} ({BAND_LABEL[sig]})", tex_escape(g["core:datatype"]), tex_escape(item),
+        rows.append([f"ch{i} ({', '.join(BAND_LABEL[sig] for sig in file_bands)})", tex_escape(g["core:datatype"]), tex_escape(item),
                      tex_escape(values.get(f"DataTypeAdapter{i}.implementation", "?")),
                      tex_escape(values.get(f"InputFilter{i}.implementation", "?")),
                      up if k > 1 and resamp == "Pass_Through" else tex_escape(up),  # the x5 note is LaTeX already
@@ -337,7 +362,7 @@ def stage_acquisition(tex, out, run_dir, bands, fs):
                       f"{float(best['test_statistic']) / float(best['threshold']):.1f}" if best else "--"])
     tex.table(["Band", "Attempts", "Detections", "Detected PRNs", "Best statistic / threshold"], table,
               "Acquisition: search attempts of the dumped channel. Attempts on satellites that are not in view "
-              "(or, for L5/L2C, do not broadcast that signal) are rejected below the threshold.")
+              "(or do not broadcast that signal, e.g. older GPS satellites on L5/L2C) are rejected below the threshold.")
 
 
 # ---------------------------------------------------------------------------------------------- 4. tracking
@@ -383,8 +408,12 @@ def stage_tracking(tex, out, run_dir, bands, fs):
                 axes[1, j].plot(tt[m][::dec], d["carrier_doppler_hz"][m][::dec] / 1e3, lw=0.6)
                 cn0 = np.median(d["CN0_SNV_dB_Hz"][m])
                 locked = np.mean(d["carrier_lock_test"][m] > LOCK_OK) * 100
+                # time tracked: the sum of the gaps between consecutive outputs (1 ms during pull-in, up to 20 ms
+                # once bit-synchronized: count x spacing would overcount), without the gaps where the channel was
+                # off this satellite
+                gaps = np.diff(t[m])
                 rows.append([BAND_LABEL[sig], ch, prn, f"{cn0:.1f}", f"{locked:.0f}", losses.get(ch, 0),
-                             f"{m.sum() * np.median(np.diff(t[m])):.0f}" if m.sum() > 1 else "--"])
+                             f"{gaps[gaps < 1].sum():.0f}" if m.sum() > 1 else "--"])
                 if cn0 > best.get(sig, (0,))[0]:
                     best[sig] = (cn0, prn, d, m)
         axes[0, j].set(title=BAND_LABEL[sig], ylabel="C/N$_0$ [dB-Hz]")
@@ -403,7 +432,8 @@ def stage_tracking(tex, out, run_dir, bands, fs):
     fig.tight_layout()
     tex.figure(savefig(fig, out, "tracking_iq", tex), "Tracking: prompt correlator outputs of the strongest "
                "satellite per band. Two tight clusters on one axis (the $\\pm1$ data bits; GNSS-SDR's L5 tracking puts "
-               "the data component on the Q axis) mean the PLL is phase-locked; a ring would mean it is not. \\texttt{Prompt\\_I}/\\texttt{Prompt\\_Q} are 32-bit floats (sums of the samples over one integration period, in file units): they never clip, only overflowing beyond $\\pm 3.4\\times10^{38}$, far above the $N\\cdot\\text{full scale}\\cdot\\sqrt{2}$ a sum of $N$ samples can reach.")
+               "the data component on the Q axis), or a single one for a dataless pilot (Galileo E1-C and E5a-Q, "
+               "tracked here), mean the PLL is phase-locked; a ring would mean it is not. \\texttt{Prompt\\_I}/\\texttt{Prompt\\_Q} are 32-bit floats (sums of the samples over one integration period, in file units): they never clip, only overflowing beyond $\\pm 3.4\\times10^{38}$, far above the $N\\cdot\\text{full scale}\\cdot\\sqrt{2}$ a sum of $N$ samples can reach.")
     tex.table(["Band", "Ch.", "PRN", "Median C/N$_0$ [dB-Hz]", "Phase-locked [\\%]", "Losses of lock",
                "Tracked [s]"], rows, f"Tracking: per channel and satellite (phase-locked: carrier lock test "
                f"$> {LOCK_OK}$).")
@@ -427,9 +457,16 @@ def nav_message_counts(run_dir):
     if not stdout.exists():
         return counts
     text = re.sub(r"\x1b\[[0-9;]*m", "", stdout.read_text(errors="replace"))
-    for m in re.finditer(r"New GPS (NAV|L5 CNAV|L2C? ?CNAV|CNAV) message received in channel \d+: .*?satellite GPS PRN (\d+)", text):
-        band = "1C" if m.group(1) == "NAV" else ("L5" if "L5" in m.group(1) else "2S")
-        counts[(band, int(m.group(2)))] = counts.get((band, int(m.group(2))), 0) + 1
+    # e.g. "New GPS NAV message received in channel 4: subframe 3 from satellite GPS PRN 32 (Block IIF) ...",
+    # "New Galileo E1 I/NAV message received in channel 6: ephemeris from satellite Galileo PRN E14 (...) ...",
+    # "New Galileo E5a F/NAV message ..."
+    message_band = {"GPS NAV": "1C", "GPS L5 CNAV": "L5", "GPS CNAV": "2S", "Galileo E1 I/NAV": "1B",
+                    "Galileo E1 I/NAV reduced CED": "1B", "Galileo E5a F/NAV": "5X"}
+    for m in re.finditer(r"New ((?:GPS|Galileo) [^\n]*?) message received in channel \d+: [^\n]*?satellite "
+                         r"(?:GPS|Galileo) PRN E?(\d+)", text):
+        band = message_band.get(m.group(1))
+        if band:
+            counts[(band, int(m.group(2)))] = counts.get((band, int(m.group(2))), 0) + 1
     return counts
 
 
@@ -447,10 +484,11 @@ def stage_telemetry(tex, out, run_dir, bands, fs):
         return
     lnav = ephemeris_prns(run_dir / "gps_ephemeris.xml")
     cnav = ephemeris_prns(run_dir / "gps_cnav_ephemeris.xml")
+    galileo = ephemeris_prns(run_dir / "gal_ephemeris.xml")
+    ephemeris_of = {"1C": lnav, "2S": cnav, "L5": cnav, "1B": galileo, "5X": galileo}
     msgs = nav_message_counts(run_dir)
     fig, ax = plt.subplots(figsize=(FIG_W, 2.6))
     rows, labels, y = [], [], 0
-    colors = {"1C": "C0", "2S": "C2", "L5": "C1"}
     seen = {}
     for (sig, ch), d in sorted(tlm.items(), key=lambda kv: ([b[0] for b in bands].index(kv[0][0]), kv[0][1])):
         t = d["tracking_sample_counter"] / fs
@@ -461,8 +499,8 @@ def stage_telemetry(tex, out, run_dir, bands, fs):
                 seen[key] = y
                 labels.append(f"{BAND_LABEL[sig]} {prn}")
                 y += 1
-            ax.plot(t[m], np.full(m.sum(), seen[key]), "|", color=colors[sig], ms=4)
-            eph = prn in (lnav if sig == "1C" else cnav)
+            ax.plot(t[m], np.full(m.sum(), seen[key]), "|", color=BAND_COLOR[sig], ms=4)
+            eph = prn in ephemeris_of[sig]
             rows.append([BAND_LABEL[sig], prn, msgs.get(key, "--"), "yes" if eph else "no",
                          f"{t[m][0]:.1f}", f"{d['TOW_at_current_symbol_ms'][m][0]:.1f}"])
     ax.set(yticks=range(len(labels)), yticklabels=labels, xlabel="time [s]",
@@ -472,9 +510,11 @@ def stage_telemetry(tex, out, run_dir, bands, fs):
     tex.figure(savefig(fig, out, "telemetry", tex), "Telemetry decoder: per band and satellite, when the decoder "
                "delivered a valid transmit time (the first one comes after the first complete frame/message).")
     rows.sort(key=lambda r: (r[0], r[1]))
+    message_kind = {"1C": "GPS L1 C/A LNAV subframes", "2S": "GPS L2C CNAV messages", "L5": "GPS L5 CNAV messages",
+                    "1B": "Galileo E1 I/NAV words", "5X": "Galileo E5a F/NAV pages"}
     tex.table(["Band", "PRN", "Messages decoded", "Ephemeris", "First valid at [s]", "TOW [s]"], rows,
-              "Telemetry decoder: L1 C/A LNAV subframes and L2C/L5 CNAV messages decoded, ephemeris obtained, and "
-              "the first valid time of week.")
+              "Telemetry decoder: " + ", ".join(message_kind[b[0]] for b in bands) + " decoded, ephemeris "
+              "obtained, and the first valid time of week.")
 
 
 # ------------------------------------------------------------------------------------------- 6. observables
@@ -496,27 +536,31 @@ def stage_observables(tex, out, run_dir, bands):
         for e in np.flatnonzero(valid[ch]):
             per.setdefault((chan_band[ch], int(obs["PRN"][ch, e])), {})[e] = obs["Pseudorange_m"][ch, e]
     keys = sorted(per, key=lambda k: ([b[0] for b in bands].index(k[0]), k[1]))
-    colors = {"1C": "C0", "2S": "C2", "L5": "C1"}
     for i, k in enumerate(keys):
         ep = np.array(sorted(per[k]))
-        axes[0].plot(t[ep] - t0, np.full(ep.size, i), "|", color=colors[k[0]], ms=3)
+        axes[0].plot(t[ep] - t0, np.full(ep.size, i), "|", color=BAND_COLOR[k[0]], ms=3)
     axes[0].set(yticks=range(len(keys)), yticklabels=[f"{BAND_LABEL[b]} {p}" for b, p in keys],
                 xlabel="time [s]", title="valid pseudoranges")
     axes[0].tick_params(axis="y", labelsize=5)
-    second = bands[1][0] if len(bands) > 1 else None
+    # the run's dual-frequency pairs, e.g. GPS L1 C/A -> L5, or Galileo E1 -> E5a
+    run_signals = [b[0] for b in bands]
+    pairs = [(first, second) for first, second in BAND_PAIRS if first in run_signals and second in run_signals]
     rows = []
-    if second:
-        for prn in sorted({p for b, p in keys if b == "1C"} & {p for b, p in keys if b == second}):
-            ep = np.array(sorted(set(per[("1C", prn)]) & set(per[(second, prn)])))
+    for first, second in pairs:
+        for prn in sorted({p for b, p in keys if b == first} & {p for b, p in keys if b == second}):
+            ep = np.array(sorted(set(per[(first, prn)]) & set(per[(second, prn)])))
             if ep.size < 2:
                 continue
-            d = np.array([per[(second, prn)][e] - per[("1C", prn)][e] for e in ep])
-            axes[1].plot(t[ep] - t0, d, ".", ms=1, label=f"{prn}")
+            d = np.array([per[(second, prn)][e] - per[(first, prn)][e] for e in ep])
+            prefix = "E" if first == "1B" else ""  # Galileo PRNs as E11, beside GPS PRN numbers
+            axes[1].plot(t[ep] - t0, d, ".", ms=1, label=f"{prefix}{prn}")
             drift = np.polyfit(t[ep] - t[ep][0], d, 1)[0]
-            rows.append([prn, ep.size, f"{100 * ep.size / len(t):.0f}", f"{d.mean():.2f}", f"{d.std():.2f}",
-                         f"{drift:.4f}"])
-        axes[1].set(xlabel="time [s]", ylabel=f"P$_{{{BAND_LABEL[second]}}}$ - P$_{{L1}}$ [m]",
-                    title=f"{BAND_LABEL[second]} minus L1 pseudorange")
+            rows.append([f"{BAND_LABEL[second]} $-$ {BAND_LABEL[first]}", prn, ep.size,
+                         f"{100 * ep.size / len(t):.0f}", f"{d.mean():.2f}", f"{d.std():.2f}", f"{drift:.4f}"])
+    pair_names = " / ".join(f"{BAND_LABEL[second]} $-$ {BAND_LABEL[first]}" for first, second in pairs)
+    if pairs:
+        axes[1].set(xlabel="time [s]", ylabel="pseudorange difference [m]", title=pair_names)
+        axes[1].title.set_fontsize(7)
         if rows:
             axes[1].legend(fontsize=5, ncol=3, title="PRN", title_fontsize=5, markerscale=5)
     fig.tight_layout()
@@ -524,11 +568,11 @@ def stage_observables(tex, out, run_dir, bands):
                "satellite, and the difference between the two bands' pseudoranges of the same satellite (a constant "
                "receiver inter-band bias, the same for every satellite, plus the slowly varying ionospheric delay).")
     if rows:
-        tex.table(["PRN", "Common epochs", "of run [\\%]", "Mean [m]", "Std [m]", "Drift [m/s]"], rows,
-                  f"Observables: P$_{{\\mathrm{{{BAND_LABEL[second]}}}}}$ $-$ P$_{{\\mathrm{{L1}}}}$ per satellite "
-                  "at common epochs (similar means = shared receiver bias; std = code noise of both bands).")
-    else:
-        tex.missing(f"epochs with both L1 and {BAND_LABEL.get(second, 'second-band')} pseudoranges")
+        tex.table(["Difference", "PRN", "Common epochs", "of run [\\%]", "Mean [m]", "Std [m]", "Drift [m/s]"], rows,
+                  "Observables: pseudorange difference between the two bands of each satellite at common epochs "
+                  "(similar means = shared receiver bias; std = code noise of both bands).")
+    elif pairs:
+        tex.missing(f"epochs with pseudoranges on both bands ({pair_names})")
     return obs
 
 
@@ -545,7 +589,16 @@ def stats_row(label, enu, t, n_total):
             f"{np.percentile(h, 95):.1f}"]
 
 
-def stage_pvt(tex, out, run_dir, bands, obs):
+def gnss_sdr_pvt_label(values, bands):
+    """Which signals gnss-sdr's own (RTKLIB) solution uses: with Iono-Free-LC every band, otherwise only the L1/E1
+    signals (single frequency, broadcast ionosphere model); GPS + Galileo are solved together."""
+    run_signals = [b[0] for b in bands]
+    is_iono_free = values.get("PVT.iono_model", "") == "Iono-Free-LC"
+    used = run_signals if is_iono_free else [s for s in run_signals if s in ("1C", "1B")]
+    return "gnss-sdr, " + " + ".join(BAND_LABEL[s] for s in used) + (", iono-free" if is_iono_free else "")
+
+
+def stage_pvt(tex, out, run_dir, bands, obs, values):
     tex.para("PVT.", "Position from the pseudoranges and the decoded ephemeris, compared with the surveyed antenna "
              f"position ({ANTENNA_LLH[0]}$^\\circ$, {ANTENNA_LLH[1]}$^\\circ$, {ANTENNA_LLH[2]}~m).")
     sols = []
@@ -558,18 +611,19 @@ def stage_pvt(tex, out, run_dir, bands, obs):
             from gnss_spp import enu_matrix, llh_to_ecef
             ref, r = llh_to_ecef(*ANTENNA_LLH), enu_matrix(ANTENNA_LLH[0], ANTENNA_LLH[1])
             enu = np.array([r @ (llh_to_ecef(a, b, c) - ref) for a, b, c in zip(lat[ok], lon[ok], h[ok])]).reshape(-1, 3)
-            sols.append(("gnss-sdr, L1 C/A", enu, d.get("RX_time", np.arange(ok.size))[ok] if ok.any() else []))
+            sols.append((gnss_sdr_pvt_label(values, bands), enu, d.get("RX_time", np.arange(ok.size))[ok] if ok.any() else []))
     spp_epochs = {}
     eph_path = run_dir / "gps_ephemeris.xml"
-    if obs is not None and eph_path.exists():
+    run_signals = [b[0] for b in bands]
+    # gnss_spp.py is GPS-only: a GPS L1 C/A + L5 (or L2C) run gets its iono-free solution too
+    second = next((s for s in ("L5", "2S") if s in run_signals), None) if "1C" in run_signals else None
+    if obs is not None and eph_path.exists() and second:
         eph = load_lnav_ephemeris(eph_path)
         chan_bands = [band_of_channel(bands, ch) for ch in range(sum(b[2] for b in bands))]
-        second = bands[1][0] if len(bands) > 1 else None
-        if second:
-            ep = solve(obs, chan_bands, eph, second_band=second)
-            spp_epochs[second] = ep
-            sols.append((f"iono-free L1 C/A + {BAND_LABEL[second]}", enu_errors(ep, ANTENNA_LLH),
-                         np.array([e["t"] for e in ep])))
+        ep = solve(obs, chan_bands, eph, second_band=second)
+        spp_epochs[second] = ep
+        sols.append((f"gnss\\_spp.py, GPS L1 C/A + {BAND_LABEL[second].removeprefix('GPS ')}, iono-free", enu_errors(ep, ANTENNA_LLH),
+                     np.array([e["t"] for e in ep])))
     if not sols:
         tex.missing("PVT solutions")
         return
@@ -599,10 +653,13 @@ def stage_pvt(tex, out, run_dir, bands, obs):
              title="horizontal position error")
     ax_h.legend(fontsize=5)
     fig.tight_layout()
-    tex.figure(savefig(fig, out, "pvt", tex), "PVT: position error with respect to the surveyed antenna position. "
-               "L1 C/A: gnss-sdr's own solution (broadcast ionosphere model). Iono-free: computed from gnss-sdr's "
-               "observables and decoded ephemeris (gnss\\_spp.py), removing the ionospheric delay with the second band "
-               "(pseudoranges carrier-smoothed over 100~s).")
+    caption = ("PVT: position error with respect to the surveyed antenna position. gnss-sdr: GNSS-SDR's own RTKLIB "
+               "solution" + ("" if values.get("PVT.iono_model") == "Iono-Free-LC" else
+                             " (single frequency, broadcast ionosphere model)") + ".")
+    if spp_epochs:
+        caption += (" gnss\\_spp.py: computed from gnss-sdr's observables and decoded GPS ephemeris, removing the "
+                    "ionospheric delay with the second band (pseudoranges carrier-smoothed over 100~s).")
+    tex.figure(savefig(fig, out, "pvt", tex), caption)
     sky = next((ep for ep in spp_epochs.values() if ep), None)
     if sky:
         fig = plt.figure(figsize=(FIG_W / 2.2, FIG_W / 2.2))
@@ -615,18 +672,21 @@ def stage_pvt(tex, out, run_dir, bands, obs):
                 tracks.setdefault(prn, []).append((az, 90 - np.degrees(el)))
         for prn, pts in sorted(tracks.items()):
             a = np.array(pts)
-            ax.plot(a[:, 0], a[:, 1], lw=2)
-            ax.annotate(str(prn), (a[-1, 0], a[-1, 1]), fontsize=6)
+            # the track over the recording (a few degrees in 5 min) and a large dot at the satellite's last position
+            line, = ax.plot(a[:, 0], a[:, 1], lw=3)
+            ax.plot(a[-1, 0], a[-1, 1], "o", ms=11, color=line.get_color(), mec="black", mew=0.6)
+            ax.annotate(str(prn), (a[-1, 0], a[-1, 1]), xytext=(7, 4), textcoords="offset points",
+                        fontsize=9, fontweight="bold")
         ax.set_rlim(0, 90)
         ax.set_rticks([0, 30, 60, 90])
         ax.set_yticklabels(["90°", "60°", "30°", "0°"], fontsize=5)
-        tex.figure(savefig(fig, out, "skyplot", tex), "PVT: sky plot of the satellites in the dual-frequency "
+        tex.figure(savefig(fig, out, "skyplot", tex), "PVT: sky plot of the GPS satellites in the gnss\\_spp.py dual-frequency "
                    "solution (azimuth, elevation) during the recording.", width=0.45)
     tex.table_t(["Solution", "Solutions", "Run with fix [\\%]", "Mean E / N / U [m]", "Std E / N / U [m]", "RMS 2-D [m]",
                "RMS 3-D [m]", "95\\% horiz. [m]"], [stats_row(l, e, t, n_total) for l, e, t in sols],
               "PVT: position error statistics with respect to the surveyed antenna (mean = accuracy, std = "
               "precision; \\% of the run's seconds with a position; gnss-sdr outputs several solutions per second, "
-              "the iono-free one is computed once per second).")
+              "gnss\\_spp.py computes one per second).")
 
 
 # ------------------------------------------------------------------------------------------------------- main
@@ -636,27 +696,30 @@ def main():
     name = archive.name.removesuffix(".sigmf")
     out = args.out or args.tex_root / "gnss_sdr" / name
     out.mkdir(parents=True, exist_ok=True)
-    tex = Tex(args.tex_root, name)
+    tex = Tex(args.tex_root, name, args.tag, args.title)
+    results = out / (f"results_{args.tag}.tex" if args.tag else "results.tex")
     metas = read_archive_meta(archive)
     try:
         conf_name, values = conf_values(run_dir)
     except StopIteration:
         tex.missing("GNSS-SDR run (no configuration in its output directory)")
-        tex.write(out / "results.tex")
+        tex.write(results)
         return
     bands = bands_of(values)
     # the recording's metadata table in main.tex shows it (report_lib.session_subsection_tex reads this file)
-    (out / CONF_NAME_FILE).write_text(conf_name + "\n")
+    conf_name_file = CONF_NAME_FILE.replace(".txt", f"_{args.tag}.txt") if args.tag else CONF_NAME_FILE
+    (out / conf_name_file).write_text(conf_name + "\n")
     fs = float(values.get("GNSS-SDR.internal_fs_sps", 0))
-    stage_source(tex, out, archive, metas, bands)
+    if not args.tag:  # a --tag run reads the same raw recording as the first run, already shown there
+        stage_source(tex, out, archive, metas, bands)
     stage_conditioner(tex, values, metas, bands)
     stage_acquisition(tex, out, run_dir, bands, fs)
     stage_tracking(tex, out, run_dir, bands, fs)
     stage_telemetry(tex, out, run_dir, bands, fs)
     obs = stage_observables(tex, out, run_dir, bands)
-    stage_pvt(tex, out, run_dir, bands, obs)
-    tex.write(out / "results.tex")
-    print(f"wrote {out / 'results.tex'} and {len(list(out.glob('*.png')))} figures")
+    stage_pvt(tex, out, run_dir, bands, obs, values)
+    tex.write(results)
+    print(f"wrote {results} and {len(list(out.glob(f'{args.tag}_*.png' if args.tag else '*.png')))} figures")
 
 
 if __name__ == "__main__":

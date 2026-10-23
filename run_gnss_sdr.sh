@@ -18,6 +18,8 @@
 #   --report            also dump what gnss_sdr_out2tex.py needs to show every receiver stage: the acquisition grids of
 #                       the first channel of each band, every channel's tracking and navigation-decoder outputs, the
 #                       observables and the PVT solutions (implies --dump-observables)
+#   --out-suffix <s>    write the outputs to gnss_sdr_output/<name><s>/ instead of gnss_sdr_output/<name>/, for a
+#                       second run of the same recording with another config (e.g. _galileo)
 #   --l1-pvt            still track both bands, but compute the position from L1 only (PVT.iono_model=Broadcast)
 #                       instead of the dual-frequency Iono-Free-LC: a failing dual-frequency solver keeps resetting
 #                       the observables, which also hides the second band's measurements from --dump-observables
@@ -43,12 +45,14 @@ CONF="$REPO_DIR/gps_l1_l5_file.conf"
 dump_observables=false
 report=false
 l1_pvt=false
+out_suffix=""
 while [[ "${1:-}" == --* ]]; do
     case "$1" in
         --conf) CONF="$(realpath "${2:?--conf needs a file}")"; shift ;;
         --dump-observables) dump_observables=true ;;
         --report) report=true; dump_observables=true ;;
         --l1-pvt) l1_pvt=true ;;
+        --out-suffix) out_suffix="${2:?--out-suffix needs a value}"; shift ;;
         *) echo "error: unknown option $1" >&2; exit 1 ;;
     esac
     shift
@@ -75,7 +79,7 @@ $loose || [[ -n "$archive" && -f "$archive" ]] || {
     echo "error: give a .sigmf archive or <dir>/<name> of loose <name>_ch*.sigmf-{meta,data} files" >&2; exit 1; }
 archive="$(realpath "$archive")"
 name="$(basename "$archive" .sigmf)"
-out_dir="$REPO_DIR/gnss_sdr_output/$name"
+out_dir="$REPO_DIR/gnss_sdr_output/$name$out_suffix"
 echo "recording: $archive$($loose && echo " (loose files)")"
 
 # the .sigmf-meta of channel $1, from the archive or straight from disk
@@ -179,16 +183,17 @@ if $dump_observables; then
     echo "dumping observables to $out_dir/observables.mat"
 fi
 if $report; then
-    # per band (gnss-sdr signal code, in its channel order 1C, 2S, L5): acquisition grids of the band's first channel
+    # per band (gnss-sdr signal code, in its channel order 1C, 2S, L5, 1B, 5X): acquisition grids of the band's first channel
     # only (every search attempt is dumped, so all channels would be thousands of files), every channel's tracking
     # (trk_<sig>_<ch>.mat) and navigation decoder (tlm_<sig>_<ch>.mat); then the PVT solutions (pvt.mat)
     # A band whose search grid exceeds 64 MB per attempt gets no acquisition dump: writing it slows gnss-sdr to a crawl
     # (L2C: one 20-ms CM code period x 1000 Doppler bins of 10 Hz = 320 MB per attempt at 4 MS/s)
     lines=("" "; added by run_gnss_sdr.sh --report")
-    declare -A CODE_MS=([1C]=1 [2S]=20 [L5]=1)  # samples searched per attempt: one code period (coherent_integration_time_ms=1)
+    # samples searched per attempt: one code period (GPS L1 C/A, L5, Galileo E5a: 1 ms; Galileo E1: 4 ms; L2C CM: 20 ms)
+    declare -A CODE_MS=([1C]=1 [2S]=20 [L5]=1 [1B]=4 [5X]=1)
     first_ch=0
     fs_internal=$(conf_get GNSS-SDR.internal_fs_sps)
-    for sig in 1C 2S L5; do
+    for sig in 1C 2S L5 1B 5X; do
         n=$(conf_get "Channels_$sig.count"); n=${n:-0}
         (( n > 0 )) || continue
         dmax=$(conf_get "Acquisition_$sig.doppler_max"); dstep=$(conf_get "Acquisition_$sig.doppler_step")
