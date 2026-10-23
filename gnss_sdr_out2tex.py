@@ -35,16 +35,18 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.ticker import EngFormatter, MaxNLocator  # noqa: E402
 import numpy as np  # noqa: E402
 
 from compare_pseudoranges import load_observables  # noqa: E402
 from gnss_spp import enu_errors, load_lnav_ephemeris, solve  # noqa: E402
-from report_lib import tex_escape  # noqa: E402
+from report_lib import BAND_NAMES, tex_escape  # noqa: E402
 
 ANTENNA_LLH = (-23.209433, -45.874875, 596.42)  # surveyed antenna position (lat, lon [deg], h [m]), GNSS lab ITA
 # gnss-sdr signal codes, in its channel order
 SIGNALS = ("1C", "2S", "L5", "1B", "5X")
-BAND_LABEL = {"1C": "GPS L1 C/A", "2S": "GPS L2C", "L5": "GPS L5", "1B": "Galileo E1", "5X": "Galileo E5a"}
+# signal names alone: L1 C/A, L2C and L5 are GPS, E1 and E5a are Galileo
+BAND_LABEL = {"1C": "L1 C/A", "2S": "L2C", "L5": "L5", "1B": "E1", "5X": "E5a"}
 BAND_FREQ_MHZ = {"1C": 1575.42, "2S": 1227.60, "L5": 1176.45, "1B": 1575.42, "5X": 1176.45}
 CHIP_RATE = {"1C": 1.023e6, "2S": 1.023e6, "L5": 10.23e6, "1B": 1.023e6, "5X": 10.23e6}
 BAND_COLOR = {"1C": "C0", "2S": "C2", "L5": "C1", "1B": "C3", "5X": "C4"}
@@ -209,10 +211,12 @@ def stage_source(tex, out, archive, metas, bands):
         psd = np.fft.fftshift(np.mean(np.abs(np.fft.fft(segs, axis=1)) ** 2, axis=0)) / (fs * np.sum(np.hanning(nfft) ** 2))
         f_mhz = np.fft.fftshift(np.fft.fftfreq(nfft, 1 / fs)) / 1e6
         freq = metas[ch]["captures"][0]["core:frequency"] / 1e6
+        band = BAND_NAMES.get(round(freq, 2))
+        tile = f"ch{ch} ({band})" if band else f"ch{ch}"  # e.g. "ch0 (L1)" in the tile titles
         ax = axes[i, 0]
         ax.plot(f_mhz, 10 * np.log10(psd + 1e-30), lw=0.6)
         ax.set(xlabel=f"frequency offset from {freq:.2f} MHz [MHz]", ylabel="PSD [dB/Hz, file units]",
-               title=f"ch{ch} power spectral density")
+               title=f"{tile} power spectral density")
         ax = axes[i, 1]
         v = np.concatenate([x.real, x.imag])
         sd = v.std()
@@ -236,7 +240,7 @@ def stage_source(tex, out, archive, metas, bands):
             # 16-bit: the noise (std of tens) is tiny next to +-32767, so a symmetric-log x axis (linear within
             # +-5 std, logarithmic beyond) shows both its shape and the limits
             ax.set_xscale("symlog", linthresh=5 * sd)
-        ax.set(xlabel="sample value", ylabel="probability", title=f"ch{ch} I/Q probability mass function",
+        ax.set(xlabel="sample value", ylabel="probability", title=f"{tile} I/Q probability mass function",
                xlim=(-lim, lim))
         handles, labels = ax.get_legend_handles_labels()
         order = sorted(range(len(labels)), key=lambda j: ["I", "Q", "Gaussian"].index(labels[j])
@@ -256,10 +260,16 @@ def stage_source(tex, out, archive, metas, bands):
                "GNSS signals are below the noise, so only interference would stand out) and probability mass "
                "functions of the integer I/Q sample values (Gaussian noise, centred, not clipped).")
     tex.table_t(["Channel", "Frequency [MHz]", "Rate [MS/s]", "Format", "Bytes per complex sample", "Full scale",
-                 "Gain [dB]", "Std I / Q", "Mean I / Q", "Min / max I", "Min / max Q", "Headroom (full scale / std)",
+                 "Gain [dB]", "Std I / Q", "Mean I / Q", "Min / max I", "Min / max Q", "Headroom\\footnotemark",
                  "Clipped [\\%]", "Lost samples"], rows,
                 "Signal source: sample statistics per channel (headroom: how many standard deviations of the noise "
                 "fit before clipping).")
+    # \footnote does not work inside a tabular: \footnotemark in the row, its text after the table
+    tex.lines += ["\\footnotetext{Headroom $= A/\\sigma$, where $A$ is the full scale of the sample format (127 for "
+                  "8-bit, 32767 for 16-bit) and $\\sigma$ the standard deviation of the I and Q samples together "
+                  "(both in file units, over the analysed window). For Gaussian noise, the fraction of clipped "
+                  "values is $2Q(A/\\sigma)$, with $Q$ the Gaussian tail function: e.g. 0.003\\,\\% at "
+                  "$4.2\\sigma$.}", ""]
 
 
 # ------------------------------------------------------------------------------------ 2. signal conditioner
@@ -360,9 +370,16 @@ def stage_acquisition(tex, out, run_dir, bands, fs):
         best = max(det, key=lambda x: float(x["test_statistic"])) if det else None
         table.append([BAND_LABEL[sig], len(r), len(det), ", ".join(map(str, prns)) or "--",
                       f"{float(best['test_statistic']) / float(best['threshold']):.1f}" if best else "--"])
-    tex.table(["Band", "Attempts", "Detections", "Detected PRNs", "Best statistic / threshold"], table,
+    tex.table(["Band", "Attempts", "Detections", "Detected PRNs", "Best statistic / threshold\\footnotemark"], table,
               "Acquisition: search attempts of the dumped channel. Attempts on satellites that are not in view "
               "(or do not broadcast that signal, e.g. older GPS satellites on L5/L2C) are rejected below the threshold.")
+    # \footnote does not work inside a tabular: \footnotemark in the header, its text after the table
+    tex.lines += ["\\footnotetext{Margin of the band's strongest detection: the largest acquisition test statistic "
+                  "among the detected attempts (the correlation peak of the delay--Doppler grid, normalised by the "
+                  "power of the input samples searched, i.e. the noise power, since GNSS signals are below the noise) "
+                  "divided by the detection threshold, which GNSS-SDR derives from the configured "
+                  "probability of false alarm. A value of 1 is right at the detection limit; e.g. 2.5 means the peak "
+                  "cleared the threshold 2.5 times over.}", ""]
 
 
 # ---------------------------------------------------------------------------------------------- 4. tracking
@@ -389,7 +406,10 @@ def stage_tracking(tex, out, run_dir, bands, fs):
         return
     losses = losses_of_lock(run_dir)
     fig, axes = plt.subplots(2, len(bands), figsize=(FIG_W, 3.8), squeeze=False, sharex=True)
-    rows, best = [], {}
+    # loop errors: the PLL and DLL discriminator outputs of every correlation (gnss-sdr's dump names them
+    # carr_error_hz, although the PLL one is in cycles, and code_error_chips)
+    fig_err, axes_err = plt.subplots(2, len(bands), figsize=(FIG_W, 3.8), squeeze=False, sharex=True)
+    rows, best, error_spread = [], {}, {}
     for j, (sig, _, _) in enumerate(bands):
         for (s, ch), d in sorted(trk.items()):
             if s != sig:
@@ -406,6 +426,18 @@ def stage_tracking(tex, out, run_dir, bands, fs):
                 tt = np.where(ok, t, np.nan)  # NaN breaks the line across unlocked gaps
                 axes[0, j].plot(tt[m][::dec], d["CN0_SNV_dB_Hz"][m][::dec], lw=0.6, label=f"{prn}")
                 axes[1, j].plot(tt[m][::dec], d["carrier_doppler_hz"][m][::dec] / 1e3, lw=0.6)
+                pll_error_deg = d["carr_error_hz"] * 360
+                dll_error_chips = d["code_error_chips"]
+                color = axes[0, j].lines[-1].get_color()
+                # translucent dots: the satellites overlap around zero (lines were tried: an unreadable band)
+                axes_err[0, j].plot(t[ok][::dec], pll_error_deg[ok][::dec], ".", ms=0.5, alpha=0.4, color=color)
+                axes_err[1, j].plot(t[ok][::dec], dll_error_chips[ok][::dec], ".", ms=0.5, alpha=0.4, color=color,
+                                    label=f"{prn}")
+                error_spread.setdefault(sig, ([], []))
+                error_spread[sig][0].append(np.abs(pll_error_deg[ok]))
+                error_spread[sig][1].append(np.abs(dll_error_chips[ok]))
+                pll_std = f"{np.std(pll_error_deg[ok]):.1f}" if ok.sum() > 1 else "--"
+                dll_std = f"{np.std(dll_error_chips[ok]):.3f}" if ok.sum() > 1 else "--"
                 cn0 = np.median(d["CN0_SNV_dB_Hz"][m])
                 locked = np.mean(d["carrier_lock_test"][m] > LOCK_OK) * 100
                 # time tracked: the sum of the gaps between consecutive outputs (1 ms during pull-in, up to 20 ms
@@ -413,15 +445,30 @@ def stage_tracking(tex, out, run_dir, bands, fs):
                 # off this satellite
                 gaps = np.diff(t[m])
                 rows.append([BAND_LABEL[sig], ch, prn, f"{cn0:.1f}", f"{locked:.0f}", losses.get(ch, 0),
-                             f"{gaps[gaps < 1].sum():.0f}" if m.sum() > 1 else "--"])
+                             f"{gaps[gaps < 1].sum():.0f}" if m.sum() > 1 else "--", pll_std, dll_std])
                 if cn0 > best.get(sig, (0,))[0]:
                     best[sig] = (cn0, prn, d, m)
         axes[0, j].set(title=BAND_LABEL[sig], ylabel="C/N$_0$ [dB-Hz]")
         axes[0, j].legend(fontsize=5, ncol=4, title="PRN", title_fontsize=5)
         axes[1, j].set(xlabel="time [s]", ylabel="Doppler [kHz]")
+        axes_err[0, j].set(title=BAND_LABEL[sig], ylabel="PLL error [deg]")
+        axes_err[1, j].set(xlabel="time [s]", ylabel="DLL error [chips]")
+        legend = axes_err[1, j].legend(fontsize=5, ncol=4, title="PRN", title_fontsize=5, markerscale=8)
+        for handle in legend.legend_handles:  # opaque in the legend only
+            handle.set_alpha(1)
+        # y range from the 99.9th percentile: a few pull-in outliers would otherwise squeeze the locked noise
+        for k, errors in enumerate(error_spread.get(sig, ([], []))):
+            if errors and np.concatenate(errors).size:
+                lim = 1.3 * np.percentile(np.concatenate(errors), 99.9)
+                axes_err[k, j].set_ylim(-lim, lim)
     fig.tight_layout()
     tex.figure(savefig(fig, out, "tracking", tex), "Tracking: carrier-to-noise density ratio and carrier Doppler "
                "per satellite, while phase-locked (smooth Doppler curves = loops following the real satellite motion).")
+    fig_err.tight_layout()
+    tex.figure(savefig(fig_err, out, "tracking_errors", tex), "Tracking: loop errors per satellite while "
+               "phase-locked, i.e. the discriminator outputs that the loops drive to zero: PLL carrier-phase error "
+               "(degrees) and DLL code-delay error (chips) of every correlation. Noise centred on zero = clean "
+               "tracking; its spread grows as C/N$_0$ drops, and jumps would mark cycle slips or a loop losing lock.")
     fig, axes = plt.subplots(1, len(best), figsize=(FIG_W, 2.6), squeeze=False)
     for j, (sig, (cn0, prn, d, m)) in enumerate(sorted(best.items(), key=lambda kv: [b[0] for b in bands].index(kv[0]))):
         ii, qq = d["Prompt_I"][m][-5000:], d["Prompt_Q"][m][-5000:]
@@ -429,14 +476,18 @@ def stage_tracking(tex, out, run_dir, bands, fs):
         lim = 1.1 * np.max(np.abs(np.concatenate([ii, qq])))
         axes[0, j].set(xlabel="prompt I", ylabel="prompt Q", title=f"{BAND_LABEL[sig]} PRN {prn}",
                        xlim=(-lim, lim), ylim=(-lim, lim), aspect="equal")
+        for axis in (axes[0, j].xaxis, axes[0, j].yaxis):  # 400k instead of 400000: long labels overlapped
+            axis.set_major_formatter(EngFormatter(places=0, sep=""))
+            axis.set_major_locator(MaxNLocator(nbins=4, symmetric=True))
     fig.tight_layout()
     tex.figure(savefig(fig, out, "tracking_iq", tex), "Tracking: prompt correlator outputs of the strongest "
                "satellite per band. Two tight clusters on one axis (the $\\pm1$ data bits; GNSS-SDR's L5 tracking puts "
-               "the data component on the Q axis), or a single one for a dataless pilot (Galileo E1-C and E5a-Q, "
-               "tracked here), mean the PLL is phase-locked; a ring would mean it is not. \\texttt{Prompt\\_I}/\\texttt{Prompt\\_Q} are 32-bit floats (sums of the samples over one integration period, in file units): they never clip, only overflowing beyond $\\pm 3.4\\times10^{38}$, far above the $N\\cdot\\text{full scale}\\cdot\\sqrt{2}$ a sum of $N$ samples can reach.")
+               "the data component on the Q axis), or, for the dataless pilots tracked for Galileo (E1-C, E5a-Q), "
+               "the $\\pm1$ chips of their secondary code, mean the PLL is phase-locked; a ring would mean it is not. \\texttt{Prompt\\_I}/\\texttt{Prompt\\_Q} are 32-bit floats (sums of the samples over one integration period, in file units): they never clip, only overflowing beyond $\\pm 3.4\\times10^{38}$, far above the $N\\cdot\\text{full scale}\\cdot\\sqrt{2}$ a sum of $N$ samples can reach.")
     tex.table(["Band", "Ch.", "PRN", "Median C/N$_0$ [dB-Hz]", "Phase-locked [\\%]", "Losses of lock",
-               "Tracked [s]"], rows, f"Tracking: per channel and satellite (phase-locked: carrier lock test "
-               f"$> {LOCK_OK}$).")
+               "Tracked [s]", "PLL error std [deg]", "DLL error std [chips]"], rows,
+              f"Tracking: per channel and satellite (phase-locked: carrier lock test $> {LOCK_OK}$; loop error "
+              "standard deviations while phase-locked).")
 
 
 # ------------------------------------------------------------------------------------- 5. telemetry decoder
@@ -510,8 +561,8 @@ def stage_telemetry(tex, out, run_dir, bands, fs):
     tex.figure(savefig(fig, out, "telemetry", tex), "Telemetry decoder: per band and satellite, when the decoder "
                "delivered a valid transmit time (the first one comes after the first complete frame/message).")
     rows.sort(key=lambda r: (r[0], r[1]))
-    message_kind = {"1C": "GPS L1 C/A LNAV subframes", "2S": "GPS L2C CNAV messages", "L5": "GPS L5 CNAV messages",
-                    "1B": "Galileo E1 I/NAV words", "5X": "Galileo E5a F/NAV pages"}
+    message_kind = {"1C": "L1 C/A LNAV subframes", "2S": "L2C CNAV messages", "L5": "L5 CNAV messages",
+                    "1B": "E1 I/NAV words", "5X": "E5a F/NAV pages"}
     tex.table(["Band", "PRN", "Messages decoded", "Ephemeris", "First valid at [s]", "TOW [s]"], rows,
               "Telemetry decoder: " + ", ".join(message_kind[b[0]] for b in bands) + " decoded, ephemeris "
               "obtained, and the first valid time of week.")
@@ -622,7 +673,7 @@ def stage_pvt(tex, out, run_dir, bands, obs, values):
         chan_bands = [band_of_channel(bands, ch) for ch in range(sum(b[2] for b in bands))]
         ep = solve(obs, chan_bands, eph, second_band=second)
         spp_epochs[second] = ep
-        sols.append((f"gnss\\_spp.py, GPS L1 C/A + {BAND_LABEL[second].removeprefix('GPS ')}, iono-free", enu_errors(ep, ANTENNA_LLH),
+        sols.append((f"gnss\\_spp.py, L1 C/A + {BAND_LABEL[second]}, iono-free", enu_errors(ep, ANTENNA_LLH),
                      np.array([e["t"] for e in ep])))
     if not sols:
         tex.missing("PVT solutions")

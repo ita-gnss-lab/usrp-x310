@@ -117,6 +117,9 @@ Table \ref{tab:recording-calendar} shows the days when recordings were made. The
           \ifdate{equals=2026-10-22}{%
             \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
           }{}%
+          \ifdate{equals=2026-10-23}{%
+            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
         },
         execute after day scope={%
           \ifdate{equals=2026-10-08}{%
@@ -144,6 +147,9 @@ Table \ref{tab:recording-calendar} shows the days when recordings were made. The
             \tikzset{every day/.style={anchor=base east}}%
           }{}%
           \ifdate{equals=2026-10-22}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+          \ifdate{equals=2026-10-23}{%
             \tikzset{every day/.style={anchor=base east}}%
           }{}%
         }]
@@ -219,11 +225,12 @@ Detects which satellites are present and gives a first, coarse estimate of each 
 Follows each detected signal with a delay-lock loop (code) and a phase-lock loop (carrier), producing every 1--20~ms the prompt correlator output (which carries the navigation data bits), the carrier-to-noise density ratio $C/N_0$, the Doppler, the code, and carrier phases.
 \begin{itemize}
   \item \textbf{$C/N_0$ and Doppler versus time} per satellite and band: $C/N_0$ of roughly 35--50~dB-Hz for an open-sky antenna, and smooth Doppler curves following the satellite motion.
-  \item \textbf{Prompt I/Q scatter} of the strongest satellite per band: with the carrier phase locked, the energy sits on the in-phase axis in two clusters (the $\pm1$ data bits), or in a single cluster for the dataless pilot components that Galileo is tracked on (E1-C, E5a-Q); without phase lock it would be a ring. Each point is one prompt correlator output, the received samples $x[n]$ multiplied by the local code replica $c$ aligned at the estimated code delay $\hat\tau$ and by the local carrier replica (estimated Doppler $\hat f_D$ and phase $\hat\phi$), summed over the $N$ samples of one integration period ($T_s$: sampling period):
+  \item \textbf{Prompt I/Q scatter} of the strongest satellite per band: with the carrier phase locked, the energy sits on the in-phase axis in two clusters (the $\pm1$ data bits), or in for the dataless pilot components that Galileo is tracked on (E1-C, E5a-Q), the $\pm1$ chips of their secondary code; without phase lock it would be a ring. Each point is one prompt correlator output, the received samples $x[n]$ multiplied by the local code replica $c$ aligned at the estimated code delay $\hat\tau$ and by the local carrier replica (estimated Doppler $\hat f_D$ and phase $\hat\phi$), summed over the $N$ samples of one integration period ($T_s$: sampling period):
   \begin{equation}
     P = \sum_{n=1}^{N} x[n]\,c[n-\hat\tau]\,e^{-j(2\pi \hat f_D n T_s + \hat\phi)} = I + jQ.
   \end{equation}
-  \item \textbf{Table} per satellite: median $C/N_0$, percentage of time phase-locked, losses of lock and time tracked.
+  \item \textbf{Loop errors versus time} per satellite and band: the PLL carrier-phase error (degrees) and the DLL code-delay error (chips), i.e. the discriminator outputs the loops drive to zero. Noise centred on zero means clean tracking; jumps would mark cycle slips or a loop losing lock.
+  \item \textbf{Table} per satellite: median $C/N_0$, percentage of time phase-locked, losses of lock, time tracked, and the standard deviation of the PLL and DLL errors.
 \end{itemize}
 
 \subsection{Telemetry decoder}
@@ -475,5 +482,100 @@ Computes position, velocity and receiver clock (PVT) from the pseudoranges and t
 \end{table}
 
 \input{gnss_sdr/x310_20261022T193000Z/results.tex}
+
+
+\section{Records on 23/10/2026}
+
+\subsection{First record}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{Parameter} & \textbf{Channel 0} & \textbf{Channel 1} \\
+    \hline
+    Start time & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{2026-10-23 19:00:06 UTC} \\
+    \hline
+    Frequency & 1575.420 MHz (L1) & 1176.450 MHz (L5) \\
+    \hline
+    Duration & 300.0 s & 300.0 s \\
+    \hline
+    Sample rate & 4.000 MS/s & 20.000 MS/s \\
+    \hline
+    Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 8-bit samples (I+Q), converted on the host from the X310's sc16} \\
+    \hline
+    Gain & 25.0 dB & 25.0 dB \\
+    \hline
+    Antenna & RX1 & RX2 \\
+    \hline
+    File size & 2400.0 MB & 12000.0 MB \\
+    \hline
+    Samples written & 1,200,000,000 & 6,000,000,000 \\
+    \hline
+    Lost samples & 0 & 0 \\
+    \hline
+    Clock source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{external} \\
+    \hline
+    Time source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{internal} \\
+    \hline
+    Motherboard & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{USRP X310} \\
+    \hline
+    Daughterboard & TwinRX RX0 & TwinRX RX1 \\
+    \hline
+    Recorder & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{UHD Python API} \\
+    \hline
+    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}, \texttt{galileo\_e1\_8bits4msps\_e5a\_8bits20msps.conf}} \\
+    \hline
+  \end{tabular}
+  \caption{Metadata for recording \texttt{x310\_20261023T190000Z}, captured starting 2026-10-23T19:00:06.932068Z.}
+\end{table}
+
+\input{gnss_sdr/x310_20261023T190000Z/results.tex}
+\input{gnss_sdr/x310_20261023T190000Z/results_galileo.tex}
+
+
+\subsection{Second record}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{Parameter} & \textbf{Channel 0} & \textbf{Channel 1} \\
+    \hline
+    Start time & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{2026-10-23 19:33:16 UTC} \\
+    \hline
+    Frequency & 1575.420 MHz (L1) & 1227.600 MHz (L2) \\
+    \hline
+    Duration & 300.0 s & 300.0 s \\
+    \hline
+    Sample rate & 4.000 MS/s & 4.000 MS/s \\
+    \hline
+    Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 16-bit samples (I+Q), little-endian, as received from the X310 (sc16)} \\
+    \hline
+    Gain & 25.0 dB & 25.0 dB \\
+    \hline
+    Antenna & RX1 & RX2 \\
+    \hline
+    File size & 4800.0 MB & 4800.0 MB \\
+    \hline
+    Samples written & 1,200,000,000 & 1,200,000,000 \\
+    \hline
+    Lost samples & 0 & 0 \\
+    \hline
+    Clock source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{external} \\
+    \hline
+    Time source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{internal} \\
+    \hline
+    Motherboard & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{USRP X310} \\
+    \hline
+    Daughterboard & TwinRX RX0 & TwinRX RX1 \\
+    \hline
+    Recorder & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{UHD Python API} \\
+    \hline
+    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca16bits4msps\_l2c16bits4msps.conf}} \\
+    \hline
+  \end{tabular}
+  \caption{Metadata for recording \texttt{x310\_20261023T193310Z}, captured starting 2026-10-23T19:33:16.661684Z.}
+\end{table}
+
+\input{gnss_sdr/x310_20261023T193310Z/results.tex}
 
 \end{document}
