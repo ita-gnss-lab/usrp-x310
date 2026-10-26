@@ -3,7 +3,7 @@ Raw I/Q samples of each channel analysed within the window [10, 10.5]~s after th
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/source.png}
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/source.jpg}
   \caption{Signal source: power spectral density (the receiver passband over a flat thermal-noise floor; GNSS signals are below the noise, so only interference would stand out) and probability mass functions of the integer I/Q sample values (Gaussian noise, centred, not clipped).}
 \end{figure}
 
@@ -62,13 +62,13 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/acq_1C.png}
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/acq_1C.jpg}
   \caption{Acquisition, L1 C/A: delay--Doppler search of PRN 8; one sharp peak (test statistic 59 vs threshold 47) at 2000~Hz and 845.6~chips.}
 \end{figure}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/acq_L5.png}
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/acq_L5.jpg}
   \caption{Acquisition, L5: delay--Doppler search of PRN 8; one sharp peak (test statistic 134 vs threshold 49) at 1392~Hz and 5856.2~chips.}
 \end{figure}
 
@@ -94,19 +94,19 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/tracking.png}
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/tracking.jpg}
   \caption{Tracking: carrier-to-noise density ratio and carrier Doppler per satellite, while phase-locked (smooth Doppler curves = loops following the real satellite motion).}
 \end{figure}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/tracking_errors.png}
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/tracking_errors.jpg}
   \caption{Tracking: loop errors per satellite while phase-locked, i.e. the discriminator outputs that the loops drive to zero: PLL carrier-phase error (degrees) and DLL code-delay error (chips) of every correlation. Noise centred on zero = clean tracking; its spread grows as C/N$_0$ drops, and jumps would mark cycle slips or a loop losing lock.}
 \end{figure}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/tracking_iq.png}
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/tracking_iq.jpg}
   \caption{Tracking: prompt correlator outputs of the strongest satellite per band. Two tight clusters on one axis (the $\pm1$ data bits; GNSS-SDR's L5 tracking puts the data component on the Q axis), or, for the dataless pilots tracked for Galileo (E1-C, E5a-Q), the $\pm1$ chips of their secondary code, mean the PLL is phase-locked; a ring would mean it is not. \texttt{Prompt\_I}/\texttt{Prompt\_Q} are 32-bit floats (sums of the samples over one integration period, in file units): they never clip, only overflowing beyond $\pm 3.4\times10^{38}$, far above the $N\cdot\text{full scale}\cdot\sqrt{2}$ a sum of $N$ samples can reach.}
 \end{figure}
 
@@ -145,7 +145,7 @@ Two-dimensional search over code delay and Doppler (one channel per band dumped;
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/telemetry.png}
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/telemetry.jpg}
   \caption{Telemetry decoder: per band and satellite, when the decoder delivered a valid transmit time (the first one comes after the first complete frame/message).}
 \end{figure}
 
@@ -180,7 +180,7 @@ Pseudorange, carrier phase and Doppler of every channel at common receiver epoch
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/observables.png}
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/observables.jpg}
   \caption{Observables: epochs with a valid pseudorange per band and satellite, and the difference between the two bands' pseudoranges of the same satellite (a constant receiver inter-band bias, the same for every satellite, plus the slowly varying ionospheric delay).}
 \end{figure}
 
@@ -207,13 +207,13 @@ Position from the pseudoranges and the decoded ephemeris, compared with the surv
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/pvt.png}
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261023T190000Z/pvt.jpg}
   \caption{PVT: position error with respect to the surveyed antenna position. gnss-sdr: GNSS-SDR's own RTKLIB solution (single frequency, broadcast ionosphere model). gnss\_spp\_lib.py: computed from gnss-sdr's observables and decoded GPS ephemeris, removing the ionospheric delay with the second band (pseudoranges carrier-smoothed over 100~s).}
 \end{figure}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.45\linewidth]{gnss_sdr/x310_20261023T190000Z/skyplot.png}
+  \includegraphics[width=0.45\linewidth]{gnss_sdr/x310_20261023T190000Z/skyplot.jpg}
   \caption{PVT: sky plot of the GPS satellites in the gnss\_spp\_lib.py dual-frequency solution (azimuth, elevation) during the recording.}
 \end{figure}
 

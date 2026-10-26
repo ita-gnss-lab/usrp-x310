@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Wrapper invoked by x310-record.timer every 15 min between 16:00 and 18:00.
+# Wrapper invoked by x310-record.timer every 15 min between 21:00 and 23:00.
 #
 # Per report/main.tex's recording guidelines:
 #   1. only inside the [$WINDOW_START, $WINDOW_END) local-time window
@@ -22,7 +22,8 @@
 #      report/gnss_sdr/<name>/ (gnss_sdr_out2tex.py)
 #   8. adds the recording (metadata table + those GNSS-SDR results) to report/main.tex and recompiles the PDF
 #      (update_report.py); the 15-day x310-report.service only sends that PDF by WhatsApp
-#   Steps 7-8 are never fatal: a failure leaves the recording itself untouched and is only logged
+#   9. commits the report (report/main.tex, main.pdf, report/gnss_sdr/) and pushes it to GitHub (push_report)
+#   Steps 7-9 are never fatal: a failure leaves the recording itself untouched and is only logged
 #
 # All five are re-checked here regardless of the timer schedule, so a manual
 # `systemctl start`, a Persistent=true catch-up run, or a future timer edit
@@ -35,8 +36,8 @@ REPO_DIR="/home/tapyu/git/usrp-x310"
 UV_BIN="/home/tapyu/.local/bin/uv"
 STATE_DIR="${STATE_DIRECTORY:-/var/lib/x310-recorder}"
 USRP_ARGS="addr=192.168.10.2"
-WINDOW_START="16:00"
-WINDOW_END="18:00"
+WINDOW_START="21:00"
+WINDOW_END="23:00"
 MAX_PER_DAY=2
 MIN_GAP_SEC=$((30 * 60))
 # Record to the local disk first (fast, steady writes), then bundle the archive straight onto the NAS.
@@ -64,6 +65,10 @@ PROFILE_EXTRA_CONFS=("e1_8bits4msps_e5a_8bits20msps.conf" "")
 PROFILE_EXTRA_TAGS=("galileo" "")
 PROFILE_EXTRA_TITLES=("Galileo E1 + E5a" "")
 REPORT_DIR="$REPO_DIR/report/gnss_sdr"
+# pushed over SSH with ~/.ssh/id_ed25519 (registered on GitHub, no passphrase): origin is HTTPS, whose credential
+# helper (Git Credential Manager, gpg store) needs a terminal to unlock the token, which a systemd service lacks
+GIT_PUSH_URL="git@github.com:ita-gnss-lab/usrp-x310.git"
+REPORT_PATHS=(report/main.tex report/main.pdf report/gnss_sdr)
 
 # Process recording $1 (archive path) with gnss-sdr config $2, write its report figures/tables, and drop the bulky
 # per-stage dumps afterwards (tracking/telemetry dumps are ~1 GB per run; the figures keep what they showed).
@@ -89,6 +94,23 @@ process_recording() {
     find "$REPO_DIR/gnss_sdr_output/$run" -maxdepth 1 \( -name 'trk_*' -o -name 'tlm_*' -o -name 'acq_*.mat' \
         -o -name '*.dat' \) -delete
     echo "GNSS-SDR results of $run in $REPORT_DIR/$name"
+}
+
+# Commit the report files the processing changed (only REPORT_PATHS: whatever else is modified or staged in the
+# working tree, e.g. code being edited, stays out of the commit) and push the checked-out branch to GitHub.
+push_report() {
+    local name=$1
+    git -C "$REPO_DIR" add -A -- "${REPORT_PATHS[@]}" || { echo "warning: git add of the report failed"; return 0; }
+    if git -C "$REPO_DIR" diff --cached --quiet -- "${REPORT_PATHS[@]}"; then
+        echo "report unchanged; nothing to commit"
+        return 0
+    fi
+    git -C "$REPO_DIR" commit --quiet -m "report: add recording $name" -- "${REPORT_PATHS[@]}" \
+        || { echo "warning: committing the report failed"; return 0; }
+    GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="ssh -o BatchMode=yes" \
+        git -C "$REPO_DIR" push --quiet "$GIT_PUSH_URL" HEAD \
+        || { echo "warning: pushing the report failed (committed locally; push by hand)"; return 0; }
+    echo "report committed and pushed ($(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD))"
 }
 
 # Move every finished archive from staging to the NAS. rsync writes each file under a hidden
@@ -197,6 +219,8 @@ if [[ -f "$archive" ]]; then
     # 8. add it to the report and recompile (with its GNSS-SDR results if step 7 produced them)
     "$UV_BIN" run update_report.py "$archive" --recordings-dir "$NAS_DIR" --tex-path "$REPO_DIR/report/main.tex" \
         || echo "warning: adding $name to the report failed"
+    # 9. commit and push the updated report
+    push_report "$name"
 else
     echo "warning: archive of $name not found; not processed"
 fi

@@ -279,7 +279,7 @@ It prints each channel's I/Q standard deviation against a target band (1/16 to 1
 Scheduled, unattended recording is driven by a timer/service pair in \texttt{systemd/}, enforcing (independently of the timer's own schedule, so a manual trigger or a missed/caught-up run can never violate them):
 
 \begin{itemize}[leftmargin=*]
-    \item recording only inside the \texttt{[16:00, 18:00)} local-time window;
+    \item recording only inside the \texttt{[21:00, 23:00)} local-time window;
     \item at most two recordings per calendar day;
     \item the second recording starting at least 30~min after the first;
     \item sensing the USRP via \texttt{uhd\_find\_devices} before attempting to record, retrying silently every 15~min if it is not reachable;
@@ -288,7 +288,7 @@ Scheduled, unattended recording is driven by a timer/service pair in \texttt{sys
 
 Manual recordings should likewise use a local directory, e.g.\ \texttt{uv run x310usrp\_record.py --staging-dir staging}, and be moved to the NAS afterwards.
 
-\texttt{x310-record.timer} fires every 15~min between 16:00 and 18:00; \texttt{x310-record.sh} (invoked by \texttt{x310-record.service}) is what actually evaluates all of the conditions above and, if they pass, runs \texttt{x310usrp\_record.py}. Install and enable it with:
+\texttt{x310-record.timer} fires every 15~min between 21:00 and 23:00; \texttt{x310-record.sh} (invoked by \texttt{x310-record.service}) is what actually evaluates all of the conditions above and, if they pass, runs \texttt{x310usrp\_record.py}. Install and enable it with:
 
 \begin{lstlisting}[language=bash]
 sudo ln -s $PWD/systemd/x310-record.service /etc/systemd/system/
@@ -482,7 +482,7 @@ Sample rate RX1:    20 MS/s (L5)
 Gain RX0/RX1:       25 dB / 25 dB (Section~\ref{sec:gain})
 Sample type:        sc16 over the wire, ci8 on disk (int8 I + int8 Q = 2 bytes)
 int8 divisor:       1 (L1) / 3 (L5)
-Recording length:   300 s (5 min), up to twice per day, 16:00-18:00 local time
+Recording length:   300 s (5 min), up to twice per day, 21:00-23:00 local time
 \end{lstlisting}
 
 Equivalently, as the command this whole configuration reduces to when run manually:

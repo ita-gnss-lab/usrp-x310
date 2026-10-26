@@ -1,0 +1,259 @@
+\subsubsection{Signal source}
+Raw I/Q samples of each channel analysed within the window [10, 10.5]~s after the start recording instant.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261024T193000Z/source.jpg}
+  \caption{Signal source: power spectral density (the receiver passband over a flat thermal-noise floor; GNSS signals are below the noise, so only interference would stand out) and probability mass functions of the integer I/Q sample values (Gaussian noise, centred, not clipped).}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{l>{\centering\arraybackslash}p{4.2cm}>{\centering\arraybackslash}p{4.2cm}}
+    \hline
+    \textbf{Channel} & \textbf{ch0} & \textbf{ch1} \\
+    \hline
+    Frequency [MHz] & 1575.42 & 1227.60 \\
+    Rate [MS/s] & 4 & 4 \\
+    Format & ci16\_le & ci16\_le \\
+    Bytes per complex sample & 4 (2 for I, 2 for Q) & 4 (2 for I, 2 for Q) \\
+    Full scale & $\pm$32767 & $\pm$32767 \\
+    Gain [dB] & 25 & 25 \\
+    Std I / Q & 30.9 / 31.0 & 42.5 / 42.4 \\
+    Mean I / Q & -0.15 / 0.08 & -0.17 / -0.04 \\
+    Min / max I & -146 / 146 & -216 / 196 \\
+    Min / max Q & -152 / 146 & -204 / 217 \\
+    Headroom\footnotemark & 1058.6 & 772.1 \\
+    Clipped [\%] & 0.000 & 0.000 \\
+    Lost samples & 0 & 0 \\
+    \hline
+  \end{tabular}}
+  \caption{Signal source: sample statistics per channel (headroom: how many standard deviations of the noise fit before clipping).}
+\end{table}
+
+\footnotetext{Headroom $= A/\sigma$, where $A$ is the full scale of the sample format (127 for 8-bit, 32767 for 16-bit) and $\sigma$ the standard deviation of the I and Q samples together (both in file units, over the analysed window). For Gaussian noise, the fraction of clipped values is $2Q(A/\sigma)$, with $Q$ the Gaussian tail function: e.g. 0.003\,\% at $4.2\sigma$.}
+
+\subsubsection{Signal conditioner}
+
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{l>{\centering\arraybackslash}p{4.2cm}>{\centering\arraybackslash}p{4.2cm}}
+    \hline
+    \textbf{Channel} & \textbf{ch0 (L1 C/A, E1)} & \textbf{ch1 (L2C)} \\
+    \hline
+    File format & ci16\_le & ci16\_le \\
+    Source item type & ishort & ishort \\
+    Data type adapter & Ishort\_To\_Complex & Ishort\_To\_Complex \\
+    Input filter & Pass\_Through & Pass\_Through \\
+    Resampling & Pass\_Through & Pass\_Through \\
+    Rate [MS/s] & 4 $\to$ 4 & 4 $\to$ 4 \\
+    \hline
+  \end{tabular}}
+  \caption{Signal conditioner: recorded format and rate to gnss-sdr's internal \texttt{gr\_complex} stream; both bands are read in lockstep by one \texttt{Multichannel\_File\_Signal\_Source}.}
+\end{table}
+
+\subsubsection{Acquisition}
+Two-dimensional search over code delay and Doppler (one channel per band dumped; the others behave alike).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261024T193000Z/acq_1C.jpg}
+  \caption{Acquisition, L1 C/A: delay--Doppler search of PRN 1; one sharp peak (test statistic 49 vs threshold 44) at 2750~Hz and 474.7~chips.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261024T193000Z/acq_1B.jpg}
+  \caption{Acquisition, E1: delay--Doppler search of PRN 31; one sharp peak (test statistic 79 vs threshold 48) at -1750~Hz and 298.5~chips.}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lrrrr}
+    \hline
+    \textbf{Band} & \textbf{Attempts} & \textbf{Detections} & \textbf{Detected PRNs} & \textbf{Best statistic / threshold\footnotemark} \\
+    \hline
+    L1 C/A & 485 & 1 & 1 & 1.1 \\
+    L2C & \multicolumn{4}{l}{not dumped (search grid too large); acquired satellites: see the tracking table} \\
+    E1 & 4 & 1 & 31 & 1.6 \\
+    \hline
+  \end{tabular}}
+  \caption{Acquisition: search attempts of the dumped channel. Attempts on satellites that are not in view (or do not broadcast that signal, e.g. older GPS satellites on L5/L2C) are rejected below the threshold.}
+\end{table}
+
+\footnotetext{Margin of the band's strongest detection: the largest acquisition test statistic among the detected attempts (the correlation peak of the delay--Doppler grid, normalised by the power of the input samples searched, i.e. the noise power, since GNSS signals are below the noise) divided by the detection threshold, which GNSS-SDR derives from the configured probability of false alarm. A value of 1 is right at the detection limit; e.g. 2.5 means the peak cleared the threshold 2.5 times over.}
+
+\subsubsection{Tracking}
+
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261024T193000Z/tracking.jpg}
+  \caption{Tracking: carrier-to-noise density ratio and carrier Doppler per satellite, while phase-locked (smooth Doppler curves = loops following the real satellite motion).}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261024T193000Z/tracking_errors.jpg}
+  \caption{Tracking: loop errors per satellite while phase-locked, i.e. the discriminator outputs that the loops drive to zero: PLL carrier-phase error (degrees) and DLL code-delay error (chips) of every correlation. Noise centred on zero = clean tracking; its spread grows as C/N$_0$ drops, and jumps would mark cycle slips or a loop losing lock.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261024T193000Z/tracking_iq.jpg}
+  \caption{Tracking: prompt correlator outputs of the strongest satellite per band. Two tight clusters on one axis (the $\pm1$ data bits; GNSS-SDR's L5 tracking puts the data component on the Q axis), or, for the dataless pilots tracked for Galileo (E1-C, E5a-Q), the $\pm1$ chips of their secondary code, mean the PLL is phase-locked; a ring would mean it is not. \texttt{Prompt\_I}/\texttt{Prompt\_Q} are 32-bit floats (sums of the samples over one integration period, in file units): they never clip, only overflowing beyond $\pm 3.4\times10^{38}$, far above the $N\cdot\text{full scale}\cdot\sqrt{2}$ a sum of $N$ samples can reach.}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lrrrrrrrr}
+    \hline
+    \textbf{Band} & \textbf{Ch.} & \textbf{PRN} & \textbf{Median C/N$_0$ [dB-Hz]} & \textbf{Phase-locked [\%]} & \textbf{Losses of lock} & \textbf{Tracked [s]} & \textbf{PLL error std [deg]} & \textbf{DLL error std [chips]} \\
+    \hline
+    L1 C/A & 0 & 1 & 41.0 & 88 & 0 & 270 & 12.5 & 0.095 \\
+    L1 C/A & 1 & 8 & 47.8 & 95 & 0 & 297 & 5.9 & 0.047 \\
+    L1 C/A & 2 & 10 & 47.2 & 100 & 0 & 300 & 6.4 & 0.049 \\
+    L1 C/A & 3 & 32 & 51.3 & 96 & 0 & 298 & 4.0 & 0.031 \\
+    L1 C/A & 4 & 2 & 47.4 & 96 & 0 & 298 & 6.1 & 0.046 \\
+    L1 C/A & 5 & 27 & 48.2 & 92 & 0 & 298 & 5.6 & 0.043 \\
+    L1 C/A & 6 & 28 & 43.1 & 90 & 1 & 296 & 10.8 & 0.083 \\
+    L1 C/A & 7 & 31 & 45.9 & 100 & 0 & 295 & 7.8 & 0.061 \\
+    L2C & 8 & 1 & 36.2 & 86 & 0 & 253 & 5.3 & 0.060 \\
+    L2C & 9 & 31 & 35.0 & 55 & 3 & 276 & 6.6 & 0.069 \\
+    L2C & 10 & 8 & 41.8 & 95 & 0 & 277 & 3.3 & 0.030 \\
+    L2C & 11 & 10 & 39.5 & 81 & 1 & 276 & 4.3 & 0.045 \\
+    L2C & 12 & 32 & 44.7 & 94 & 0 & 276 & 2.7 & 0.022 \\
+    L2C & 14 & 27 & 39.6 & 45 & 3 & 276 & 5.6 & 0.036 \\
+    L2C & 15 & 28 & 37.7 & 71 & 2 & 252 & 4.4 & 0.042 \\
+    E1 & 16 & 31 & 39.2 & 98 & 0 & 298 & 8.5 & 0.097 \\
+    E1 & 17 & 18 & 43.6 & 99 & 0 & 299 & 4.8 & 0.056 \\
+    E1 & 18 & 19 & 41.7 & 98 & 0 & 299 & 6.0 & 0.070 \\
+    E1 & 19 & 26 & 44.9 & 97 & 1 & 294 & 4.4 & 0.049 \\
+    E1 & 20 & 7 & 40.8 & 98 & 0 & 296 & 6.9 & 0.079 \\
+    E1 & 21 & 23 & 40.6 & 99 & 1 & 275 & 7.0 & 0.081 \\
+    E1 & 21 & 28 & 42.5 & 0 & 1 & 21 & -- & -- \\
+    E1 & 22 & 29 & 46.6 & 100 & 0 & 298 & 3.4 & 0.040 \\
+    E1 & 23 & 33 & 45.3 & 98 & 0 & 297 & 3.5 & 0.041 \\
+    \hline
+  \end{tabular}}
+  \caption{Tracking: per channel and satellite (phase-locked: carrier lock test $> 0.8$; loop error standard deviations while phase-locked).}
+\end{table}
+
+\subsubsection{Telemetry decoder}
+
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261024T193000Z/telemetry.jpg}
+  \caption{Telemetry decoder: per band and satellite, when the decoder delivered a valid transmit time (the first one comes after the first complete frame/message).}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lrrrrr}
+    \hline
+    \textbf{Band} & \textbf{PRN} & \textbf{Messages decoded} & \textbf{Ephemeris} & \textbf{First valid at [s]} & \textbf{TOW [s]} \\
+    \hline
+    E1 & 7 & 26 & yes & 24.9 & 588650.0 \\
+    E1 & 18 & 27 & yes & 22.8 & 588648.0 \\
+    E1 & 19 & 27 & yes & 18.8 & 588644.0 \\
+    E1 & 23 & 24 & yes & 54.9 & 588680.0 \\
+    E1 & 26 & 24 & yes & 54.8 & 588680.0 \\
+    E1 & 29 & 26 & yes & 24.8 & 588650.0 \\
+    E1 & 31 & 26 & yes & 26.9 & 588652.0 \\
+    E1 & 33 & 26 & yes & 24.8 & 588650.0 \\
+    L1 C/A & 1 & 43 & yes & 46.8 & 588672.0 \\
+    L1 C/A & 2 & 47 & yes & 22.8 & 588648.0 \\
+    L1 C/A & 8 & 47 & yes & 22.8 & 588648.0 \\
+    L1 C/A & 10 & 46 & yes & 22.8 & 588648.0 \\
+    L1 C/A & 27 & 47 & yes & 22.8 & 588648.0 \\
+    L1 C/A & 28 & 42 & yes & 46.8 & 588672.0 \\
+    L1 C/A & 31 & 47 & yes & 22.8 & 588648.0 \\
+    L1 C/A & 32 & 47 & yes & 22.8 & 588648.0 \\
+    L2C & 1 & 14 & yes & 58.4 & 0.0 \\
+    L2C & 8 & 13 & yes & 34.4 & 0.0 \\
+    L2C & 10 & 9 & yes & 34.5 & 0.0 \\
+    L2C & 27 & 2 & no & 34.7 & 0.0 \\
+    L2C & 28 & 5 & yes & 58.5 & 0.0 \\
+    L2C & 31 & 8 & yes & 35.0 & 0.0 \\
+    L2C & 32 & 13 & yes & 34.5 & 0.0 \\
+    \hline
+  \end{tabular}}
+  \caption{Telemetry decoder: L1 C/A LNAV subframes, L2C CNAV messages, E1 I/NAV words decoded, ephemeris obtained, and the first valid time of week.}
+\end{table}
+
+\subsubsection{Observables}
+Pseudorange, carrier phase and Doppler of every channel at common receiver epochs.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261024T193000Z/observables.jpg}
+  \caption{Observables: epochs with a valid pseudorange per band and satellite, and the difference between the two bands' pseudoranges of the same satellite (a constant receiver inter-band bias, the same for every satellite, plus the slowly varying ionospheric delay).}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lrrrrrr}
+    \hline
+    \textbf{Difference} & \textbf{PRN} & \textbf{Common epochs} & \textbf{of run [\%]} & \textbf{Mean [m]} & \textbf{Std [m]} & \textbf{Drift [m/s]} \\
+    \hline
+    L2C $-$ L1 C/A & 1 & 11364 & 76 & -136.67 & 7.21 & -0.0353 \\
+    L2C $-$ L1 C/A & 8 & 12562 & 84 & -137.27 & 3.68 & -0.0021 \\
+    L2C $-$ L1 C/A & 10 & 8932 & 60 & -138.51 & 4.05 & -0.0000 \\
+    L2C $-$ L1 C/A & 27 & 1736 & 12 & -140.56 & 4.07 & 0.1949 \\
+    L2C $-$ L1 C/A & 28 & 4170 & 28 & -137.26 & 5.58 & -0.0237 \\
+    L2C $-$ L1 C/A & 31 & 7158 & 48 & -138.45 & 7.12 & 0.0509 \\
+    L2C $-$ L1 C/A & 32 & 12556 & 84 & -139.30 & 2.55 & 0.0083 \\
+    \hline
+  \end{tabular}}
+  \caption{Observables: pseudorange difference between the two bands of each satellite at common epochs (similar means = shared receiver bias; std = code noise of both bands).}
+\end{table}
+
+\subsubsection{PVT}
+Position from the pseudoranges and the decoded ephemeris, compared with the surveyed antenna position (-23.209433$^\circ$, -45.874875$^\circ$, 596.42~m).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261024T193000Z/pvt.jpg}
+  \caption{PVT: position error with respect to the surveyed antenna position. gnss-sdr: GNSS-SDR's own RTKLIB solution (single frequency, broadcast ionosphere model). gnss\_spp\_lib.py: computed from gnss-sdr's observables and decoded GPS ephemeris, removing the ionospheric delay with the second band (pseudoranges carrier-smoothed over 100~s).}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.45\linewidth]{gnss_sdr/x310_20261024T193000Z/skyplot.jpg}
+  \caption{PVT: sky plot of the GPS satellites in the gnss\_spp\_lib.py dual-frequency solution (azimuth, elevation) during the recording.}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{l>{\centering\arraybackslash}p{4.2cm}>{\centering\arraybackslash}p{4.2cm}}
+    \hline
+    \textbf{Solution} & \textbf{gnss-sdr, L1 C/A + E1} & \textbf{gnss\_spp\_lib.py, L1 C/A + L2C, iono-free} \\
+    \hline
+    Solutions & 13152 & 178 \\
+    Run with fix [\%] & 91 & 64 \\
+    Mean E / N / U [m] & -5.0 / 1.9 / 13.3 & -6.4 / 0.3 / 13.9 \\
+    Std E / N / U [m] & 1.6 / 1.4 / 3.7 & 9.2 / 19.9 / 24.5 \\
+    RMS 2-D [m] & 5.8 & 22.8 \\
+    RMS 3-D [m] & 15.0 & 36.2 \\
+    95\% horiz. [m] & 8.2 & 55.6 \\
+    \hline
+  \end{tabular}}
+  \caption{PVT: position error statistics with respect to the surveyed antenna (mean = accuracy, std = precision; \% of the run's seconds with a position; gnss-sdr outputs several solutions per second, gnss\_spp\_lib.py computes one per second).}
+\end{table}
+

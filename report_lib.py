@@ -17,6 +17,9 @@ from datetime import datetime
 from pathlib import Path
 
 ORDINALS = ["First", "Second", "Third", "Fourth", "Fifth"]  # per-day record count never exceeds 2 in practice
+# the "Recording reports" part keeps only this many most recent recording days (days with at least one recording), so
+# the PDF stays under WhatsApp's ~18 MB document limit (~1 MB per day); older days stay in the calendar and in git
+KEPT_RECORDING_DAYS = 15
 BAND_NAMES = {1575.42: "L1", 1227.60: "L2", 1176.45: "L5"}  # GPS carrier [MHz] -> band name
 
 
@@ -262,6 +265,29 @@ def append_to_report(sessions, tex_path, all_sessions):
     text = text.replace(marker, insertion + marker, 1)
     tex_path.write_text(text)
     print(f"appended {len(sessions)} recording(s) to {tex_path}")
+
+
+_DAY_SECTION_RE = re.compile(r"^\\section\{Records on (\d{2}/\d{2}/\d{4})\}$", re.MULTILINE)
+
+
+def prune_old_days(tex_path, keep_days=KEPT_RECORDING_DAYS):
+    """Drop every "Records on dd/mm/yyyy" \\section but the keep_days most recent ones from tex_path, together with the
+    GNSS-SDR figures and tables (gnss_sdr/<name>/) its recordings \\input. Each day section runs up to the next one,
+    or to \\end{document} for the last. Returns the removed days."""
+    if not tex_path.exists():
+        return []
+    text = tex_path.read_text()
+    starts = list(_DAY_SECTION_RE.finditer(text))
+    if len(starts) <= keep_days:
+        return []
+    cut_from, cut_to = starts[0].start(), starts[-keep_days].start()
+    removed = text[cut_from:cut_to]
+    for name in sorted(set(re.findall(r"\\input\{gnss_sdr/([^/}]+)/", removed))):
+        shutil.rmtree(tex_path.parent / "gnss_sdr" / name, ignore_errors=True)
+    tex_path.write_text(text[:cut_from] + text[cut_to:])
+    days = [m.group(1) for m in starts[:-keep_days]]
+    print(f"dropped {len(days)} recording day(s) older than the last {keep_days} from {tex_path}: {', '.join(days)}")
+    return days
 
 
 def calendar_tikz_block(year, month, day_counts):

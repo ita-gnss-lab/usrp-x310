@@ -4,12 +4,15 @@ Called by systemd/x310-record.sh after every recording. For the given <name>.sig
   1. appends the recording to report/main.tex's "Recording reports" part: a \\section{Records on dd/mm/yyyy}
      when it is the day's first recording, then a \\subsection{First/Second record} with its metadata table and,
      when gnss_sdr_out2tex.py has written them, its GNSS-SDR results (report/gnss_sdr/<name>/results.tex);
-  2. refreshes the recording calendar table from every archive in --recordings-dir;
-  3. compiles the report (make compile, twice) into report/main.pdf.
-A recording already in the report is not added twice (step 1 is skipped, steps 2-3 still run). The periodic
+  2. keeps only the last KEPT_RECORDING_DAYS (15) recording days in that part, deleting the older days' sections
+     and their report/gnss_sdr/<name>/ results, so the PDF stays small enough for WhatsApp;
+  3. refreshes the recording calendar table from every archive in --recordings-dir (all days, also the dropped ones);
+  4. compiles the report (pdflatex, twice) into report/main.pdf.
+A recording already in the report is not added twice (step 1 is skipped, steps 2-4 still run). The periodic
 WhatsApp message (send_whatsapp_msg.py) then only sends the compiled PDF.
 
---missing adds, oldest first, every recording of --recordings-dir that is not in the report yet: a backfill for
+--missing adds, oldest first, every recording of --recordings-dir within the last 15 recording days that is not in
+the report yet: a backfill for
 recordings made before this script ran after each recording (until 22/10/2026 the report was only extended every
 15 days), or while it failed.
 
@@ -21,7 +24,8 @@ Examples:
 import argparse
 from pathlib import Path
 
-from report_lib import append_to_report, compile_report_pdf, load_sessions, tex_escape, update_calendar_table
+from report_lib import (KEPT_RECORDING_DAYS, append_to_report, compile_report_pdf, load_sessions, prune_old_days,
+                        tex_escape, update_calendar_table)
 
 
 def parse_args():
@@ -45,7 +49,9 @@ def main():
         raise SystemExit("error: give one archive, or --missing")
     sessions = load_sessions(args.recordings_dir)
     if args.missing:
-        new = [s for s in sessions if not in_report(args.tex_path, s["name"])]  # load_sessions sorts them by date
+        # load_sessions sorts them by date; older days would only be dropped again by prune_old_days
+        recent_days = sorted({s["datetime"].date() for s in sessions})[-KEPT_RECORDING_DAYS:]
+        new = [s for s in sessions if s["datetime"].date() in recent_days and not in_report(args.tex_path, s["name"])]
     else:
         name = args.archive.name.removesuffix(".sigmf")
         if not any(s["name"] == name for s in sessions):
@@ -60,6 +66,7 @@ def main():
             new = []
     for session in new:  # one at a time: each may start a new day section
         append_to_report([session], args.tex_path, sessions)
+    prune_old_days(args.tex_path)
     update_calendar_table(args.tex_path, sessions)
     print(f"compiled {compile_report_pdf(args.tex_path)}")
 

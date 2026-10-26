@@ -1,7 +1,7 @@
 """Turn one recording's GNSS-SDR run (run_gnss_sdr.sh --report) into figures and tables for report/main.tex.
 
 One block of evidence per receiver stage, in the order of the report's "Validating the recordings with GNSS-SDR"
-section, written to <out>/results.tex (\\input under the recording's metadata table) plus PNG figures:
+section, written to <out>/results.tex (\\input under the recording's metadata table) plus JPEG figures:
   1. Signal source        PSD + I/Q histogram per channel (from the raw recording); table of sample statistics
   2. Signal conditioner   table: recorded format/rate -> what gnss-sdr processes (format, rate, upsampling)
   3. Acquisition          delay-Doppler map of the strongest detection per band; table of attempts/detections
@@ -108,16 +108,20 @@ def band_of_channel(bands, ch):
 
 CONF_NAME_FILE = "gnss_sdr_conf.txt"  # name of the gnss-sdr configuration the recording was processed with
 # (gnss_sdr_conf_<tag>.txt for a --tag run)
-FIG_DPI = 200  # raster figures: vector PDFs of plots with ~10^4-10^5 points made the report too heavy to render
+# raster figures: vector PDFs of plots with ~10^4-10^5 points made the report too heavy to render. JPEG at 120 dpi,
+# quality 70, rather than 200-dpi PNG: the PDF holds 15 recording days (~30 recordings, ~20 figures each) and must
+# stay under WhatsApp's (OpenWA) ~18 MB document limit -- ~1 MB per day instead of ~4 MB, text still readable
+FIG_DPI = 120
+FIG_FORMAT, FIG_JPEG_QUALITY = "jpg", 70
 
 
 def fig_path(out, name, tag=""):
-    return out / (f"{tag}_{name}.png" if tag else f"{name}.png")
+    return out / (f"{tag}_{name}.{FIG_FORMAT}" if tag else f"{name}.{FIG_FORMAT}")
 
 
 def savefig(fig, out, name, tex):
     path = fig_path(out, name, tex.tag)
-    fig.savefig(path, dpi=FIG_DPI)
+    fig.savefig(path, dpi=FIG_DPI, pil_kwargs={"quality": FIG_JPEG_QUALITY, "optimize": True, "progressive": True})
     plt.close(fig)
     return path.relative_to(tex.root).as_posix()
 
@@ -769,7 +773,7 @@ def main():
     obs = stage_observables(tex, out, run_dir, bands)
     stage_pvt(tex, out, run_dir, bands, obs, values)
     tex.write(results)
-    print(f"wrote {results} and {len(list(out.glob(f'{args.tag}_*.png' if args.tag else '*.png')))} figures")
+    print(f"wrote {results} and {len(list(out.glob(f'{args.tag}_*.{FIG_FORMAT}' if args.tag else f'*.{FIG_FORMAT}')))} figures")
 
 
 if __name__ == "__main__":

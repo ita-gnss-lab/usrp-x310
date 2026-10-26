@@ -1,0 +1,199 @@
+\subsubsection{Signal conditioner (Galileo E1 + E5a)}
+
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{l>{\centering\arraybackslash}p{4.2cm}>{\centering\arraybackslash}p{4.2cm}}
+    \hline
+    \textbf{Channel} & \textbf{ch0 (E1)} & \textbf{ch1 (E5a)} \\
+    \hline
+    File format & ci8 & ci8 \\
+    Source item type & ibyte & ibyte \\
+    Data type adapter & Ibyte\_To\_Complex & Ibyte\_To\_Complex \\
+    Input filter & Pass\_Through & Pass\_Through \\
+    Resampling & $\times$5 zero-order hold, offline (\texttt{upsample\_iq.py}) & Pass\_Through \\
+    Rate [MS/s] & 4 $\to$ 20 & 20 $\to$ 20 \\
+    \hline
+  \end{tabular}}
+  \caption{Signal conditioner: recorded format and rate to gnss-sdr's internal \texttt{gr\_complex} stream; both bands are read in lockstep by one \texttt{Multichannel\_File\_Signal\_Source}.}
+\end{table}
+
+\subsubsection{Acquisition (Galileo E1 + E5a)}
+Two-dimensional search over code delay and Doppler (one channel per band dumped; the others behave alike).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261025T190000Z/galileo_acq_1B.jpg}
+  \caption{Acquisition, E1: delay--Doppler search of PRN 27; one sharp peak (test statistic 76 vs threshold 52) at -2125~Hz and 274.9~chips.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261025T190000Z/galileo_acq_5X.jpg}
+  \caption{Acquisition, E5a: delay--Doppler search of PRN 18; one sharp peak (test statistic 171 vs threshold 49) at -1556~Hz and 1757.0~chips.}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lrrrr}
+    \hline
+    \textbf{Band} & \textbf{Attempts} & \textbf{Detections} & \textbf{Detected PRNs} & \textbf{Best statistic / threshold\footnotemark} \\
+    \hline
+    E1 & 4 & 1 & 27 & 1.5 \\
+    E5a & 1 & 1 & 18 & 3.5 \\
+    \hline
+  \end{tabular}}
+  \caption{Acquisition: search attempts of the dumped channel. Attempts on satellites that are not in view (or do not broadcast that signal, e.g. older GPS satellites on L5/L2C) are rejected below the threshold.}
+\end{table}
+
+\footnotetext{Margin of the band's strongest detection: the largest acquisition test statistic among the detected attempts (the correlation peak of the delay--Doppler grid, normalised by the power of the input samples searched, i.e. the noise power, since GNSS signals are below the noise) divided by the detection threshold, which GNSS-SDR derives from the configured probability of false alarm. A value of 1 is right at the detection limit; e.g. 2.5 means the peak cleared the threshold 2.5 times over.}
+
+\subsubsection{Tracking (Galileo E1 + E5a)}
+
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261025T190000Z/galileo_tracking.jpg}
+  \caption{Tracking: carrier-to-noise density ratio and carrier Doppler per satellite, while phase-locked (smooth Doppler curves = loops following the real satellite motion).}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261025T190000Z/galileo_tracking_errors.jpg}
+  \caption{Tracking: loop errors per satellite while phase-locked, i.e. the discriminator outputs that the loops drive to zero: PLL carrier-phase error (degrees) and DLL code-delay error (chips) of every correlation. Noise centred on zero = clean tracking; its spread grows as C/N$_0$ drops, and jumps would mark cycle slips or a loop losing lock.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261025T190000Z/galileo_tracking_iq.jpg}
+  \caption{Tracking: prompt correlator outputs of the strongest satellite per band. Two tight clusters on one axis (the $\pm1$ data bits; GNSS-SDR's L5 tracking puts the data component on the Q axis), or, for the dataless pilots tracked for Galileo (E1-C, E5a-Q), the $\pm1$ chips of their secondary code, mean the PLL is phase-locked; a ring would mean it is not. \texttt{Prompt\_I}/\texttt{Prompt\_Q} are 32-bit floats (sums of the samples over one integration period, in file units): they never clip, only overflowing beyond $\pm 3.4\times10^{38}$, far above the $N\cdot\text{full scale}\cdot\sqrt{2}$ a sum of $N$ samples can reach.}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lrrrrrrrr}
+    \hline
+    \textbf{Band} & \textbf{Ch.} & \textbf{PRN} & \textbf{Median C/N$_0$ [dB-Hz]} & \textbf{Phase-locked [\%]} & \textbf{Losses of lock} & \textbf{Tracked [s]} & \textbf{PLL error std [deg]} & \textbf{DLL error std [chips]} \\
+    \hline
+    E1 & 0 & 27 & 41.0 & 98 & 0 & 299 & 6.6 & 0.070 \\
+    E1 & 1 & 32 & 45.8 & 98 & 1 & 299 & 3.7 & 0.040 \\
+    E1 & 2 & 18 & 45.6 & 98 & 0 & 299 & 4.0 & 0.042 \\
+    E1 & 3 & 8 & 46.5 & 82 & 3 & 298 & 3.8 & 0.039 \\
+    E1 & 4 & 7 & 44.2 & 98 & 0 & 298 & 4.3 & 0.046 \\
+    E1 & 5 & 13 & 43.8 & 21 & 12 & 300 & 4.8 & 0.052 \\
+    E1 & 6 & 3 & 45.6 & 97 & 1 & 298 & 4.2 & 0.043 \\
+    E1 & 7 & 15 & 44.9 & 98 & 0 & 300 & 3.9 & 0.042 \\
+    E5a & 8 & 18 & 49.5 & 53 & 0 & 276 & 1.6 & 0.008 \\
+    E5a & 9 & 15 & 50.1 & 53 & 0 & 274 & 1.6 & 0.012 \\
+    E5a & 10 & 27 & 42.4 & 25 & 3 & 269 & 10.7 & 0.043 \\
+    E5a & 11 & 32 & 51.4 & 51 & 0 & 256 & 1.3 & 0.007 \\
+    E5a & 12 & 3 & 29.7 & 38 & 2 & 256 & 4.1 & 0.041 \\
+    E5a & 13 & 8 & 51.4 & 93 & 0 & 213 & 6.2 & 0.026 \\
+    E5a & 14 & 7 & 44.6 & 52 & 0 & 274 & 2.8 & 0.016 \\
+    E5a & 15 & 13 & 29.0 & 0 & 2 & 34 & 28.5 & 0.177 \\
+    \hline
+  \end{tabular}}
+  \caption{Tracking: per channel and satellite (phase-locked: carrier lock test $> 0.8$; loop error standard deviations while phase-locked).}
+\end{table}
+
+\subsubsection{Telemetry decoder (Galileo E1 + E5a)}
+
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261025T190000Z/galileo_telemetry.jpg}
+  \caption{Telemetry decoder: per band and satellite, when the decoder delivered a valid transmit time (the first one comes after the first complete frame/message).}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lrrrrr}
+    \hline
+    \textbf{Band} & \textbf{PRN} & \textbf{Messages decoded} & \textbf{Ephemeris} & \textbf{First valid at [s]} & \textbf{TOW [s]} \\
+    \hline
+    E1 & 3 & 25 & yes & 43.1 & 68468.0 \\
+    E1 & 7 & 26 & yes & 25.1 & 68450.0 \\
+    E1 & 8 & 21 & yes & 85.1 & 68510.0 \\
+    E1 & 13 & 3 & yes & 265.1 & 68690.0 \\
+    E1 & 15 & 26 & yes & 25.1 & 68450.0 \\
+    E1 & 18 & 27 & yes & 23.1 & 68448.0 \\
+    E1 & 27 & 26 & yes & 25.1 & 68450.0 \\
+    E1 & 32 & 25 & yes & 43.1 & 68468.0 \\
+    E5a & 3 & 9 & yes & 135.3 & 68560.3 \\
+    E5a & 7 & 12 & yes & 85.3 & 68510.3 \\
+    E5a & 8 & 9 & yes & 135.3 & 68560.3 \\
+    E5a & 15 & 12 & yes & 85.3 & 68510.3 \\
+    E5a & 18 & 11 & yes & 85.3 & 68510.3 \\
+    E5a & 27 & -- & yes & 285.3 & 68710.3 \\
+    E5a & 32 & 11 & yes & 95.3 & 68520.3 \\
+    \hline
+  \end{tabular}}
+  \caption{Telemetry decoder: E1 I/NAV words, E5a F/NAV pages decoded, ephemeris obtained, and the first valid time of week.}
+\end{table}
+
+\subsubsection{Observables (Galileo E1 + E5a)}
+Pseudorange, carrier phase and Doppler of every channel at common receiver epochs.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261025T190000Z/galileo_observables.jpg}
+  \caption{Observables: epochs with a valid pseudorange per band and satellite, and the difference between the two bands' pseudoranges of the same satellite (a constant receiver inter-band bias, the same for every satellite, plus the slowly varying ionospheric delay).}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{lrrrrrr}
+    \hline
+    \textbf{Difference} & \textbf{PRN} & \textbf{Common epochs} & \textbf{of run [\%]} & \textbf{Mean [m]} & \textbf{Std [m]} & \textbf{Drift [m/s]} \\
+    \hline
+    E5a $-$ E1 & 3 & 8206 & 55 & -717.05 & 1.31 & -0.0028 \\
+    E5a $-$ E1 & 7 & 10398 & 69 & -712.39 & 1.87 & 0.0037 \\
+    E5a $-$ E1 & 8 & 8207 & 55 & -718.19 & 1.48 & 0.0094 \\
+    E5a $-$ E1 & 15 & 10422 & 70 & -716.17 & 1.51 & 0.0016 \\
+    E5a $-$ E1 & 18 & 10398 & 69 & -717.25 & 1.64 & -0.0080 \\
+    E5a $-$ E1 & 27 & 720 & 5 & -708.73 & 1.89 & 0.0081 \\
+    E5a $-$ E1 & 32 & 9987 & 67 & -718.07 & 1.39 & -0.0022 \\
+    \hline
+  \end{tabular}}
+  \caption{Observables: pseudorange difference between the two bands of each satellite at common epochs (similar means = shared receiver bias; std = code noise of both bands).}
+\end{table}
+
+\subsubsection{PVT (Galileo E1 + E5a)}
+Position from the pseudoranges and the decoded ephemeris, compared with the surveyed antenna position (-23.209433$^\circ$, -45.874875$^\circ$, 596.42~m).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261025T190000Z/galileo_pvt.jpg}
+  \caption{PVT: position error with respect to the surveyed antenna position. gnss-sdr: GNSS-SDR's own RTKLIB solution.}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{l>{\centering\arraybackslash}p{4.2cm}}
+    \hline
+    \textbf{Solution} & \textbf{gnss-sdr, E1 + E5a, iono-free} \\
+    \hline
+    Solutions & 8535 \\
+    Run with fix [\%] & 60 \\
+    Mean E / N / U [m] & -25.3 / -7.1 / 17.7 \\
+    Std E / N / U [m] & 51.5 / 30.6 / 23.4 \\
+    RMS 2-D [m] & 65.4 \\
+    RMS 3-D [m] & 71.7 \\
+    95\% horiz. [m] & 133.9 \\
+    \hline
+  \end{tabular}}
+  \caption{PVT: position error statistics with respect to the surveyed antenna (mean = accuracy, std = precision; \% of the run's seconds with a position; gnss-sdr outputs several solutions per second, gnss\_spp\_lib.py computes one per second).}
+\end{table}
+

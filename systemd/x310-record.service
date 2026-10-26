@@ -1,5 +1,5 @@
 [Unit]
-Description=USRP X310 scheduled I/Q recording (max 2/day, 16:00-18:00 local time only)
+Description=USRP X310 scheduled I/Q recording (max 2/day, 21:00-23:00 local time only)
 After=network-online.target
 Wants=network-online.target
 

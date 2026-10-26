@@ -41,7 +41,7 @@
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.65\linewidth]{gnss_antenna_location.png}
+  \includegraphics[width=0.65\linewidth]{gnss_antenna_location.jpg}
   \caption{Location of the GNSS antenna.}
   \label{fig:antenna-location}
 \end{figure}
@@ -58,7 +58,7 @@ This part introduces an overview os the recordings presented in this report. It 
 
 The recording is computed automatically by a Linux service which is driven by the following guidelines:
 \begin{itemize}
-    \item Everyday, the program will start within the time rage [4PM, 6PM]
+    \item Everyday, the program will start within the time range [9PM, 11PM]
     \item It will sense whether the USRP is detectable via \texttt{uhd\_find\_devices --args=``addr=192.168.10.2''}.
     \item If not found, it will exit silently and will sense again in intervals of 15 min.
     \item Once found, two recordings are made, each with duration of 5 minutes (300 s). The first recording happens right after the USRP is detected, and the second recording is made 30 min after the first one. After that, no more recordings will be made for that day.
@@ -120,6 +120,15 @@ Table \ref{tab:recording-calendar} shows the days when recordings were made. The
           \ifdate{equals=2026-10-23}{%
             \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
           }{}%
+          \ifdate{equals=2026-10-24}{%
+            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
+          \ifdate{equals=2026-10-25}{%
+            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
+          \ifdate{equals=2026-10-26}{%
+            \tikzset{every day/.append style={fill=green!40, text=blue, shape=rectangle, inner sep=2pt}}%
+          }{}%
         },
         execute after day scope={%
           \ifdate{equals=2026-10-08}{%
@@ -150,6 +159,15 @@ Table \ref{tab:recording-calendar} shows the days when recordings were made. The
             \tikzset{every day/.style={anchor=base east}}%
           }{}%
           \ifdate{equals=2026-10-23}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+          \ifdate{equals=2026-10-24}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+          \ifdate{equals=2026-10-25}{%
+            \tikzset{every day/.style={anchor=base east}}%
+          }{}%
+          \ifdate{equals=2026-10-26}{%
             \tikzset{every day/.style={anchor=base east}}%
           }{}%
         }]
@@ -260,6 +278,8 @@ Computes position, velocity and receiver clock (PVT) from the pseudoranges and t
 
 \part{Recording reports}
 \label{part:recordings}
+
+This part holds the last 15 recording days (days with at least one recording), so that the report stays small enough to be shared; older days are still listed in the recording calendar (Table~\ref{tab:recording-calendar}) and kept in the repository history.
 
 \section{Records on 08/10/2026}
 
@@ -577,5 +597,290 @@ Computes position, velocity and receiver clock (PVT) from the pseudoranges and t
 \end{table}
 
 \input{gnss_sdr/x310_20261023T193310Z/results.tex}
+
+
+\section{Records on 24/10/2026}
+
+\subsection{First record}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{Parameter} & \textbf{Channel 0} & \textbf{Channel 1} \\
+    \hline
+    Start time & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{2026-10-24 19:00:07 UTC} \\
+    \hline
+    Frequency & 1575.420 MHz (L1) & 1176.450 MHz (L5) \\
+    \hline
+    Duration & 300.0 s & 300.0 s \\
+    \hline
+    Sample rate & 4.000 MS/s & 20.000 MS/s \\
+    \hline
+    Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 8-bit samples (I+Q), converted on the host from the X310's sc16} \\
+    \hline
+    Gain & 25.0 dB & 25.0 dB \\
+    \hline
+    Antenna & RX1 & RX2 \\
+    \hline
+    File size & 2400.0 MB & 12000.0 MB \\
+    \hline
+    Samples written & 1,200,000,000 & 6,000,000,000 \\
+    \hline
+    Lost samples & 0 & 2115024 \\
+    \hline
+    Clock source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{external} \\
+    \hline
+    Time source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{internal} \\
+    \hline
+    Motherboard & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{USRP X310} \\
+    \hline
+    Daughterboard & TwinRX RX0 & TwinRX RX1 \\
+    \hline
+    Recorder & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{UHD Python API} \\
+    \hline
+    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}, \texttt{e1\_8bits4msps\_e5a\_8bits20msps.conf}} \\
+    \hline
+  \end{tabular}
+  \caption{Metadata for recording \texttt{x310\_20261024T190000Z}, captured starting 2026-10-24T19:00:07.446070Z.}
+\end{table}
+
+\input{gnss_sdr/x310_20261024T190000Z/results.tex}
+\input{gnss_sdr/x310_20261024T190000Z/results_galileo.tex}
+
+
+\subsection{Second record}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{Parameter} & \textbf{Channel 0} & \textbf{Channel 1} \\
+    \hline
+    Start time & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{2026-10-24 19:30:07 UTC} \\
+    \hline
+    Frequency & 1575.420 MHz (L1) & 1227.600 MHz (L2) \\
+    \hline
+    Duration & 300.0 s & 300.0 s \\
+    \hline
+    Sample rate & 4.000 MS/s & 4.000 MS/s \\
+    \hline
+    Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 16-bit samples (I+Q), little-endian, as received from the X310 (sc16)} \\
+    \hline
+    Gain & 25.0 dB & 25.0 dB \\
+    \hline
+    Antenna & RX1 & RX2 \\
+    \hline
+    File size & 4800.0 MB & 4800.0 MB \\
+    \hline
+    Samples written & 1,200,000,000 & 1,200,000,000 \\
+    \hline
+    Lost samples & 0 & 0 \\
+    \hline
+    Clock source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{external} \\
+    \hline
+    Time source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{internal} \\
+    \hline
+    Motherboard & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{USRP X310} \\
+    \hline
+    Daughterboard & TwinRX RX0 & TwinRX RX1 \\
+    \hline
+    Recorder & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{UHD Python API} \\
+    \hline
+    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca16bits4msps\_l2c16bits4msps.conf}} \\
+    \hline
+  \end{tabular}
+  \caption{Metadata for recording \texttt{x310\_20261024T193000Z}, captured starting 2026-10-24T19:30:07.284275Z.}
+\end{table}
+
+\input{gnss_sdr/x310_20261024T193000Z/results.tex}
+
+
+\section{Records on 25/10/2026}
+
+\subsection{First record}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{Parameter} & \textbf{Channel 0} & \textbf{Channel 1} \\
+    \hline
+    Start time & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{2026-10-25 19:00:07 UTC} \\
+    \hline
+    Frequency & 1575.420 MHz (L1) & 1176.450 MHz (L5) \\
+    \hline
+    Duration & 300.0 s & 300.0 s \\
+    \hline
+    Sample rate & 4.000 MS/s & 20.000 MS/s \\
+    \hline
+    Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 8-bit samples (I+Q), converted on the host from the X310's sc16} \\
+    \hline
+    Gain & 25.0 dB & 25.0 dB \\
+    \hline
+    Antenna & RX1 & RX2 \\
+    \hline
+    File size & 2400.0 MB & 12000.0 MB \\
+    \hline
+    Samples written & 1,200,000,000 & 6,000,000,000 \\
+    \hline
+    Lost samples & 0 & 1134464 \\
+    \hline
+    Clock source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{external} \\
+    \hline
+    Time source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{internal} \\
+    \hline
+    Motherboard & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{USRP X310} \\
+    \hline
+    Daughterboard & TwinRX RX0 & TwinRX RX1 \\
+    \hline
+    Recorder & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{UHD Python API} \\
+    \hline
+    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}, \texttt{e1\_8bits4msps\_e5a\_8bits20msps.conf}} \\
+    \hline
+  \end{tabular}
+  \caption{Metadata for recording \texttt{x310\_20261025T190000Z}, captured starting 2026-10-25T19:00:07.043233Z.}
+\end{table}
+
+\input{gnss_sdr/x310_20261025T190000Z/results.tex}
+\input{gnss_sdr/x310_20261025T190000Z/results_galileo.tex}
+
+
+\subsection{Second record}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{Parameter} & \textbf{Channel 0} & \textbf{Channel 1} \\
+    \hline
+    Start time & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{2026-10-25 19:52:09 UTC} \\
+    \hline
+    Frequency & 1575.420 MHz (L1) & 1227.600 MHz (L2) \\
+    \hline
+    Duration & 300.0 s & 300.0 s \\
+    \hline
+    Sample rate & 4.000 MS/s & 4.000 MS/s \\
+    \hline
+    Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 16-bit samples (I+Q), little-endian, as received from the X310 (sc16)} \\
+    \hline
+    Gain & 25.0 dB & 25.0 dB \\
+    \hline
+    Antenna & RX1 & RX2 \\
+    \hline
+    File size & 4800.0 MB & 4800.0 MB \\
+    \hline
+    Samples written & 1,200,000,000 & 1,200,000,000 \\
+    \hline
+    Lost samples & 0 & 0 \\
+    \hline
+    Clock source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{external} \\
+    \hline
+    Time source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{internal} \\
+    \hline
+    Motherboard & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{USRP X310} \\
+    \hline
+    Daughterboard & TwinRX RX0 & TwinRX RX1 \\
+    \hline
+    Recorder & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{UHD Python API} \\
+    \hline
+    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca16bits4msps\_l2c16bits4msps.conf}} \\
+    \hline
+  \end{tabular}
+  \caption{Metadata for recording \texttt{x310\_20261025T195201Z}, captured starting 2026-10-25T19:52:09.046382Z.}
+\end{table}
+
+\input{gnss_sdr/x310_20261025T195201Z/results.tex}
+
+
+\section{Records on 26/10/2026}
+
+\subsection{First record}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{Parameter} & \textbf{Channel 0} & \textbf{Channel 1} \\
+    \hline
+    Start time & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{2026-10-26 19:00:08 UTC} \\
+    \hline
+    Frequency & 1575.420 MHz (L1) & 1176.450 MHz (L5) \\
+    \hline
+    Duration & 300.0 s & 300.0 s \\
+    \hline
+    Sample rate & 4.000 MS/s & 20.000 MS/s \\
+    \hline
+    Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 8-bit samples (I+Q), converted on the host from the X310's sc16} \\
+    \hline
+    Gain & 25.0 dB & 25.0 dB \\
+    \hline
+    Antenna & RX1 & RX2 \\
+    \hline
+    File size & 2400.0 MB & 12000.0 MB \\
+    \hline
+    Samples written & 1,200,000,000 & 6,000,000,000 \\
+    \hline
+    Lost samples & 0 & 3287000 \\
+    \hline
+    Clock source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{external} \\
+    \hline
+    Time source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{internal} \\
+    \hline
+    Motherboard & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{USRP X310} \\
+    \hline
+    Daughterboard & TwinRX RX0 & TwinRX RX1 \\
+    \hline
+    Recorder & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{UHD Python API} \\
+    \hline
+    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}, \texttt{e1\_8bits4msps\_e5a\_8bits20msps.conf}} \\
+    \hline
+  \end{tabular}
+  \caption{Metadata for recording \texttt{x310\_20261026T190001Z}, captured starting 2026-10-26T19:00:08.297684Z.}
+\end{table}
+
+\input{gnss_sdr/x310_20261026T190001Z/results.tex}
+\input{gnss_sdr/x310_20261026T190001Z/results_galileo.tex}
+
+
+\subsection{Second record}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|l|l|}
+    \hline
+    \textbf{Parameter} & \textbf{Channel 0} & \textbf{Channel 1} \\
+    \hline
+    Start time & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{2026-10-26 19:30:07 UTC} \\
+    \hline
+    Frequency & 1575.420 MHz (L1) & 1227.600 MHz (L2) \\
+    \hline
+    Duration & 300.0 s & 300.0 s \\
+    \hline
+    Sample rate & 4.000 MS/s & 4.000 MS/s \\
+    \hline
+    Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 16-bit samples (I+Q), little-endian, as received from the X310 (sc16)} \\
+    \hline
+    Gain & 25.0 dB & 25.0 dB \\
+    \hline
+    Antenna & RX1 & RX2 \\
+    \hline
+    File size & 4800.0 MB & 4800.0 MB \\
+    \hline
+    Samples written & 1,200,000,000 & 1,200,000,000 \\
+    \hline
+    Lost samples & 0 & 0 \\
+    \hline
+    Clock source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{external} \\
+    \hline
+    Time source & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{internal} \\
+    \hline
+    Motherboard & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{USRP X310} \\
+    \hline
+    Daughterboard & TwinRX RX0 & TwinRX RX1 \\
+    \hline
+    Recorder & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{UHD Python API} \\
+    \hline
+    GNSS-SDR configuration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{\texttt{l1ca16bits4msps\_l2c16bits4msps.conf}} \\
+    \hline
+  \end{tabular}
+  \caption{Metadata for recording \texttt{x310\_20261026T193001Z}, captured starting 2026-10-26T19:30:07.793328Z.}
+\end{table}
+
+\input{gnss_sdr/x310_20261026T193001Z/results.tex}
 
 \end{document}
