@@ -1,13 +1,16 @@
 """Add one recording to the LaTeX report and recompile it, right after the recording (and its GNSS-SDR processing).
 
 Called by systemd/x310-record.sh after every recording. For the given <name>.sigmf archive it:
-  1. appends the recording to report/main.tex's "Recording reports" part: a \\section{Records on dd/mm/yyyy}
+  1. appends the recording to report/main.tex's "Temporary GNSS data" part: a \\section{Records on dd/mm/yyyy}
      when it is the day's first recording, then a \\subsection{First/Second record} with its metadata table and,
      when gnss_sdr_out2tex.py has written them, its GNSS-SDR results (report/gnss_sdr/<name>/results.tex);
   2. keeps only the last KEPT_RECORDING_DAYS (15) recording days in that part, deleting the older days' sections
      and their report/gnss_sdr/<name>/ results, so the PDF stays small enough for WhatsApp;
-  3. refreshes the recording calendar table from every archive in --recordings-dir (all days, also the dropped ones);
-  4. compiles the report (pdflatex, twice) into report/main.pdf.
+  3. refreshes the temporary recording calendar (opening that part) from the archives of --recordings-dir in those
+     15 days, and the permanent recording calendar (opening the "Permanent scintillating data" part) from the
+     archives of --permanent-dir (none yet: the permanent storage of scintillation-corrupted recordings is not
+     automated);
+  4. compiles the report (pdflatex, biber, pdflatex) into report/main.pdf.
 A recording already in the report is not added twice (step 1 is skipped, steps 2-4 still run). The periodic
 WhatsApp message (send_whatsapp_msg.py) then only sends the compiled PDF.
 
@@ -24,8 +27,9 @@ Examples:
 import argparse
 from pathlib import Path
 
-from report_lib import (KEPT_RECORDING_DAYS, append_to_report, compile_report_pdf, load_sessions, prune_old_days,
-                        tex_escape, update_calendar_table)
+from report_lib import (KEPT_RECORDING_DAYS, PERMANENT_CALENDAR_CAPTION, PERMANENT_CALENDAR_LABEL,
+                        TEMPORARY_CALENDAR_CAPTION, TEMPORARY_CALENDAR_LABEL, append_to_report, compile_report_pdf,
+                        load_sessions, prune_old_days, tex_escape, update_calendar_table)
 
 
 def parse_args():
@@ -35,6 +39,8 @@ def parse_args():
                    help="instead of one archive, add every recording of --recordings-dir not in the report yet")
     p.add_argument("--recordings-dir", type=Path, default=Path("recordings"),
                    help="directory holding every recording (for the day's First/Second numbering and the calendar)")
+    p.add_argument("--permanent-dir", type=Path, default=None,
+                   help="directory of the scintillation-corrupted recordings kept permanently (permanent calendar)")
     p.add_argument("--tex-path", type=Path, default=Path("report/main.tex"), help="the LaTeX report")
     return p.parse_args()
 
@@ -67,7 +73,11 @@ def main():
     for session in new:  # one at a time: each may start a new day section
         append_to_report([session], args.tex_path, sessions)
     prune_old_days(args.tex_path)
-    update_calendar_table(args.tex_path, sessions)
+    recent_days = sorted({s["datetime"].date() for s in sessions})[-KEPT_RECORDING_DAYS:]
+    update_calendar_table(args.tex_path, [s for s in sessions if s["datetime"].date() in recent_days],
+                          TEMPORARY_CALENDAR_CAPTION, TEMPORARY_CALENDAR_LABEL)
+    permanent = load_sessions(args.permanent_dir) if args.permanent_dir and args.permanent_dir.is_dir() else []
+    update_calendar_table(args.tex_path, permanent, PERMANENT_CALENDAR_CAPTION, PERMANENT_CALENDAR_LABEL)
     print(f"compiled {compile_report_pdf(args.tex_path)}")
 
 

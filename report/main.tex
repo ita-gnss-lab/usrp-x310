@@ -27,7 +27,7 @@
 \renewcommand{\part}{\clearpage\old@part}
 \makeatother
 
-\title{USRP X310 Data Recording Report}
+\title{Ionospheric Scintillation Monitoring with the USRP X310}
 \author[1]{Rubem Vasconcelos Pacelli}
 \affil[1]{Aeronautics Institute of Technology (ITA)}
 \date{Last update: \today}
@@ -37,7 +37,7 @@
 \begin{document}
 \maketitle
 
-\abstract{This report describes the data recording process using the USRP X310 device. This reciver is placed in a fixed position in São José dos Campos, SP, Brazil, in the GPS/GNSS Laboratory at \gls{ita}\footnote{\url{https://github.com/ita-gnss-lab}}. The present report is updated as new recordings are made and new information is available.}
+\abstract{This report describes the monitoring of ionospheric scintillation with GNSS signals recorded by a USRP X310 device. The receiver is placed in a fixed position in São José dos Campos, SP, Brazil, in the GPS/GNSS Laboratory at \gls{ita}\footnote{\url{https://github.com/ita-gnss-lab}}, close to the southern crest of the equatorial ionization anomaly. Every evening, in the post-sunset hours when equatorial scintillation occurs, raw I/Q samples of several GNSS bands are recorded and processed with a software receiver. From its correlator outputs, the amplitude ($S_4$) and phase ($\sigma_\phi$) scintillation indices are computed, and only the recordings that show moderate or strong scintillation are stored permanently. The report is updated as new recordings are made.}
 
 \begin{figure}[h]
   \centering
@@ -50,18 +50,19 @@
 
 \tableofcontents
 
-\part{Recording overview}
+\part{Data collection}
+\label{part:data-collection}
 
-This part introduces an overview os the recordings presented in this report. It includes the methodology used to record the data, the calendar of the recorded days, the configuration of the USRP X310, and the processing of the recordings with GNSS-SDR.
+This part describes how the data is collected: the recording methodology, which keeps only the recordings that contain ionospheric scintillation, and how each recording is checked with the GNSS-SDR software receiver.
 
 \section{Methodology}
 
-The recording is computed automatically by a Linux service which is driven by the following guidelines:
+The recording is made automatically by a Linux service that follows these guidelines:
 \begin{itemize}
-    \item Everyday, the program will start within the time range [9PM, 11PM]
-    \item It will sense whether the USRP is detectable via \texttt{uhd\_find\_devices --args=``addr=192.168.10.2''}.
-    \item If not found, it will exit silently and will sense again in intervals of 15 min.
-    \item Once found, two recordings are made, each with duration of 5 minutes (300 s). The first recording happens right after the USRP is detected, and the second recording is made 30 min after the first one. After that, no more recordings will be made for that day.
+    \item Every day, the program starts within the time range [9PM, 11PM] (local time), i.e., the post-sunset hours in which equatorial plasma bubbles cause scintillation at low latitudes.
+    \item It senses whether the USRP is detectable via \texttt{uhd\_find\_devices --args=``addr=192.168.10.2''}.
+    \item If not found, it exits silently and senses again in intervals of 15 min.
+    \item Once found, two recordings are made, each with a duration of 5 minutes (300 s). The first recording happens right after the USRP is detected, and the second recording is made 30 min after the first one. After that, no more recordings are made for that day.
     \item The two recordings of a day use different signal pairs:
     \begin{itemize}
         \item First recording: channel 0 (RX0) GPS L1 C/A (1575.42~MHz), 4~MS/s; channel 1 (RX1) GPS L5 (1176.45~MHz), 20~MS/s; both 25~dB of gain, signed 8-bit I/Q (2 bytes per complex sample);
@@ -69,13 +70,231 @@ The recording is computed automatically by a Linux service which is driven by th
     \end{itemize}
     % TODO: REMOVE SUCH RECORDINGS ONCE WE HAVE ENOUGH DATA WITH THE NEW CONFIG Records made before 17/10/2026 used 2~MS/s in both channels; records made before 22/10/2026 were all GPS L1/L5.
     \item For each recording a SigMF archive file is created, with the interleaved I/Q samples + metadata, like number of channels (dual channel recording), frequencies, sampling rate, gain, sample type, etc. Each channel has its own configuration, so the metadata of each channel is reported separately.
-    \item Each recording is processed by the GNSS-SDR software receiver right after it is made, and the outputs of every receiver stage are added under the recording in Section~\ref{part:recordings} (see Section~\ref{sec:gnss-sdr}). Galileo E1 shares GPS L1's 1575.42~MHz and Galileo E5a GPS L5's 1176.45~MHz, so the recordings also hold Galileo: the first recording is processed twice (GPS L1 C/A + L5, then Galileo E1 + E5a), and the second once, with GPS L1 C/A, L2C and Galileo E1 together. % FIXME: maybe put this into one section?
-    \item After 15 days of records from the last report. Rubem will send an automatic message to header of the Laboratory, Prof. Dr. Felix Antreich, via WhatsApp with the summarized information from all recorded metadata;
+    \item Each recording is processed by the GNSS-SDR software receiver right after it is made, and the outputs of every receiver stage are added under the recording in Part~\ref{part:recordings} (see Section~\ref{sec:gnss-sdr}). Galileo E1 shares GPS L1's 1575.42~MHz and Galileo E5a GPS L5's 1176.45~MHz, so the recordings also hold Galileo: the first recording is processed twice (GPS L1 C/A + L5, then Galileo E1 + E5a), and the second once, with GPS L1 C/A, L2C and Galileo E1 together. % FIXME: maybe put this into one section?
+    \item Every recording is first \emph{temporary}: it is kept in the temporary directory of the laboratory's NAS during one 15-day cycle, and reported in Part~\ref{part:recordings}. From its correlator outputs, the scintillation indices are computed and the recording is classified into one of three scintillation severity classes (Part~\ref{part:scintillation}, Section~\ref{sec:scintillation-classes}).
+    \item Every 15 days, right after the periodic report is triggered, the following steps are performed:
+    \begin{enumerate}
+        \item the recordings of the past 15 days classified with moderate or strong scintillation are moved to the permanent NAS storage, and reported in Part~\ref{part:permanent};
+        \item the recordings with no (or weak) scintillation are deleted;
+        \item Part~\ref{part:recordings} is overwritten with the recordings of the last 15 days;
+        \item the report is sent via WhatsApp to the head of the Laboratory, Prof.\ Dr.\ Felix Antreich, together with a summary of the recorded metadata.
+    \end{enumerate}
 \end{itemize}
 
-\section{Recording calendar}
+\section{Validating the recordings with GNSS-SDR}\label{sec:gnss-sdr}
 
-Table \ref{tab:recording-calendar} shows the days when recordings were made. The color of each day indicates how many recordings were made on that day: \textcolor{green}{green} means 2 recordings, \textcolor{blue}{blue} means 1 recording, and no color means no recording was made.
+A recording is only useful if a GNSS receiver can use it: find the satellites in it, track their signals, decode their navigation messages, and compute a position. To show that, every recording is processed with GNSS-SDR\footnote{\url{https://gnss-sdr.org}, v0.0.20.}, an open-source software-defined GNSS receiver, and the output of each of its stages is added to the report of that recording (Part~\ref{part:recordings}). Figure~\ref{fig:gnss-sdr-chain} shows the data chain of GNSS-SDR. Each channel (one per satellite signal) runs its own acquisition, tracking and telemetry decoder; observables and PVT combine all of them.
+
+\begin{figure}[H]
+  \centering
+  \resizebox{\linewidth}{!}{%
+  \begin{tikzpicture}[node distance=0.35cm, every node/.style={font=\scriptsize, align=center},
+      block/.style={draw, rounded corners, minimum height=0.9cm, text width=1.45cm, fill=blue!8},
+      arrow/.style={-{Latex[length=1.5mm]}}]
+    \node[block] (src) {Signal\\source};
+    \node[block, below=of src] (cond) {Signal\\conditioner};
+    \node[block, below=of cond] (acq) {Acquisition};
+    \node[block, right=of acq] (trk) {Tracking};
+    \node[block, right=of trk] (tlm) {Telemetry\\decoder};
+    \node[block, below=of tlm] (obs) {Observables};
+    \node[block, below=of obs] (pvt) {PVT};
+    \foreach \a/\b in {src/cond, cond/acq, acq/trk, trk/tlm, tlm/obs, obs/pvt} \draw[arrow] (\a) -- (\b);
+    \draw[dashed, rounded corners] ($(acq.north west)+(-0.12,0.25)$) rectangle ($(tlm.south east)+(0.12,-0.25)$);
+    \node[right=0.3cm of tlm, text width=2.1cm, align=left] {one channel per satellite signal};
+  \end{tikzpicture}}
+  \caption{GNSS-SDR receiver chain.}
+  \label{fig:gnss-sdr-chain}
+\end{figure}
+
+\paragraph{Processing setup.} Both channels of a recording are read by one \texttt{Multichannel\_File\_Signal\_Source}, so the two bands advance in lockstep (with one independent source per band, one band runs ahead of the other and its measurements are discarded). That source reads both files at one rate: the 4~MS/s L1 C/A file of the L1/L5 recordings is upsampled 5 times (each sample repeated) to the 20~MS/s of L5 before GNSS-SDR. GNSS-SDR v0.0.20's position (RTKLIB, single point) is computed per run as follows:
+\begin{itemize}
+  \item \textbf{First recording, GPS run} (GPS L1 C/A + L5): from L1 C/A only (broadcast ionosphere model), since its dual-frequency solver was unstable with the few L5-capable GPS satellites in view. The ionosphere-free GPS L1 C/A + L5 position is computed outside GNSS-SDR, from its observables and decoded ephemeris, with our own single-point positioning (\texttt{gnss\_spp\_lib.py}).
+  \item \textbf{First recording, Galileo run} (Galileo E1-B/C + E5a): GNSS-SDR's own dual-frequency, ionosphere-free (\texttt{Iono-Free-LC}) position. Every Galileo satellite broadcasts both E1 and E5a, so all satellites in view count, unlike GPS L5.
+  \item \textbf{Second recording} (GPS L1 C/A + L2C + Galileo E1-B/C): GNSS-SDR's own single-frequency, multi-constellation position from GPS L1 C/A and Galileo E1 together (broadcast ionosphere model; RTKLIB estimates the GPS--Galileo clock offset). GNSS-SDR's solver ignores L2C, so the ionosphere-free GPS L1 C/A + L2C position again comes from \texttt{gnss\_spp\_lib.py}.
+\end{itemize}
+The Galileo run's stages are reported after the GPS run's, with ``(Galileo E1 + E5a)'' in their headings; its signal source is the same recording, so that stage is not repeated.
+
+\subsection{Signal source}
+Reads the recorded I/Q samples (here, the SigMF data files) and delivers them as a stream, one per channel. GNSS-SDR has no output of its own here, so the recording itself is examined.
+\begin{itemize}
+  \item \textbf{Power spectral density} per channel: the shape of the receiver passband over a flat thermal-noise floor. GNSS signals are 15--20~dB below the noise, so they are invisible here; a narrow peak would be interference.
+  \item \textbf{I/Q histograms}: should be Gaussian, centred on zero, and far from the integer limits (no clipping).
+  \item \textbf{Table}: format, rate and gain per channel, I/Q standard deviation and mean, percentage of clipped values, and samples lost during the recording (overflows, zero-filled).
+\end{itemize}
+
+\subsection{Signal conditioner}
+Adapts the samples to what the channels process: converts the file format (signed 8- or 16-bit interleaved I/Q) to complex floating point (data type adapter), optionally filters (input filter) and resamples (resampler).
+\begin{itemize}
+  \item \textbf{Table} per channel: file format, data type adapter, filter, resampling, and rate before and after.
+\end{itemize}
+
+\subsection{Acquisition}
+Detects which satellites are present and gives a first, coarse estimate of each one's code delay and Doppler shift, by correlating the signal with the satellite's spreading code over a two-dimensional grid of delays and Doppler frequencies, and comparing the peak with a detection threshold (set by the probability of false alarm). With dual-frequency assistance, the second band (GPS L5 or L2C, Galileo E5a) is only searched for satellites already tracked on L1/E1, around their L1/E1 Doppler scaled to the second frequency. Galileo E1 uses a 4-ms code (BOC(1,1) modulation), so its correlation peak is narrower and has side peaks.
+\begin{itemize}
+  \item \textbf{Delay--Doppler map} (surface plot) of the strongest detection per band: a single sharp peak well above the floor.
+  \item \textbf{Table}: search attempts, detections and detected satellites, and the best test statistic relative to the threshold. Attempts on satellites that are not in view, or that do not broadcast that band (L5 is only on Block IIF and III satellites, L2C on IIR-M, IIF and III), are rejected.
+\end{itemize}
+
+\subsection{Tracking}
+Follows each detected signal with a delay-lock loop (code) and a phase-lock loop (carrier), producing every 1--20~ms the prompt correlator output (which carries the navigation data bits), the carrier-to-noise density ratio $C/N_0$, the Doppler, the code, and carrier phases.
+\begin{itemize}
+  \item \textbf{$C/N_0$ and Doppler versus time} per satellite and band: $C/N_0$ of roughly 35--50~dB-Hz for an open-sky antenna, and smooth Doppler curves following the satellite motion.
+  \item \textbf{Prompt I/Q scatter} of the strongest satellite per band: with the carrier phase locked, the energy sits on the in-phase axis in two clusters (the $\pm1$ data bits), or in for the dataless pilot components that Galileo is tracked on (E1-C, E5a-Q), the $\pm1$ chips of their secondary code; without phase lock it would be a ring. Each point is one prompt correlator output, the received samples $x[n]$ multiplied by the local code replica $c$ aligned at the estimated code delay $\hat\tau$ and by the local carrier replica (estimated Doppler $\hat f_D$ and phase $\hat\phi$), summed over the $N$ samples of one integration period ($T_s$: sampling period):
+  \begin{equation}
+    P = \sum_{n=1}^{N} x[n]\,c[n-\hat\tau]\,e^{-j(2\pi \hat f_D n T_s + \hat\phi)} = I + jQ.
+  \end{equation}
+  \item \textbf{Loop errors versus time} per satellite and band: the PLL carrier-phase error (degrees) and the DLL code-delay error (chips), i.e. the discriminator outputs the loops drive to zero. Noise centred on zero means clean tracking; jumps would mark cycle slips or a loop losing lock.
+  \item \textbf{Table} per satellite: median $C/N_0$, percentage of time phase-locked, losses of lock, time tracked, and the standard deviation of the PLL and DLL errors.
+\end{itemize}
+
+\subsection{Telemetry decoder}
+Synchronizes to the navigation-message bits and frames, checks their parity/CRC (Cyclic Redundancy Check), decodes the ephemeris (orbit and satellite clock), and time-stamps every measurement with the satellite's transmit time (time of week). GPS L1 C/A carries the legacy LNAV message (6-s subframes); L2C and L5 carry CNAV (12-s and 6-s messages). Galileo E1-B carries I/NAV (2-s pages) and E5a-I F/NAV (10-s pages).
+\begin{itemize}
+  \item \textbf{Timeline} per band and satellite of when a valid transmit time was available.
+  \item \textbf{Table}: messages decoded, ephemeris obtained, and when the first valid time of week came.
+\end{itemize}
+
+\subsection{Observables}
+Aligns all channels on common receiver epochs and forms, for each satellite and band, the pseudorange (from transmit and receive times), the accumulated carrier phase and the Doppler. These are the measurements a positioning algorithm uses; GNSS-SDR also writes them to a RINEX observation file.
+\begin{itemize}
+  \item \textbf{Availability} of valid pseudoranges per band and satellite over the recording.
+  \item \textbf{Second band minus L1/E1 pseudorange} per satellite: the same constant for every satellite (the receiver's inter-band hardware bias) plus the slowly varying, satellite-dependent ionospheric delay difference (metres). It proves that both bands measure the same satellites consistently.
+  \item \textbf{Table} per satellite: common epochs, mean, standard deviation and drift of that difference.
+\end{itemize}
+
+\subsection{PVT}
+Computes position, velocity and receiver clock (PVT) from the pseudoranges and the decoded ephemeris. The antenna position was surveyed: $-23.209433^\circ$, $-45.874875^\circ$, 596.42~m (WGS-84), so the errors below are true errors, not just scatter.
+\begin{itemize}
+  \item \textbf{Horizontal error scatter and east/north/up error versus time} for GNSS-SDR's own solution of each run and, for the GPS runs, \texttt{gnss\_spp\_lib.py}'s dual-frequency ionosphere-free solution. Single-frequency single-point positioning is expected to stay within a few metres horizontally and ${\sim}10$~m vertically; the iono-free combination removes the ionospheric bias but amplifies the code noise about three times.
+  \item \textbf{Sky plot} of the GPS satellites used by \texttt{gnss\_spp\_lib.py}.
+  \item \textbf{Table}: mean error (accuracy), standard deviation (precision), 2-D and 3-D RMS, and 95\% horizontal error.
+\end{itemize}
+
+\newpage
+
+\part{Scintillation index computation}
+\label{part:scintillation}
+
+This part introduces the signal model assumed for the recorded data and the procedure to compute the amplitude ($S_4$) and phase ($\sigma_\phi$) scintillation indices from the correlator outputs of the software receiver, following \cite{wendlerScintillationProcessingSoftware2016,vandierendonckIonosphericScintillationMonitoring1993,vandierendonckMeasuringIonosphericScintillation2004}. It ends with the three scintillation severity classes that decide which recordings are stored permanently.
+
+\section{Signal model}
+\label{sec:signal-model}
+
+The signals of the $K$ satellites in view on the carrier frequencies $f_{\mathrm{c},l}$, $l = 1, \ldots, L$, are well separated by their spreading codes and frequencies. Therefore, it is sufficient to consider the signal of the $k$th satellite on the $l$th carrier on its own \cite{wendlerScintillationProcessingSoftware2016}:
+\begin{equation}
+  y_{\mathrm{RF},kl}(t) = A_{kl}(t)\, c_{kl}\big(t - \tau_{kl}(t)\big)\, d_{kl}\big(t - \tau_{kl}(t)\big) \operatorname{cos}\big(2\pi f_{\mathrm{c},l}\, t + \phi_{kl}(t)\big) + \eta(t),
+\end{equation}
+where $A_{kl}(t)$ is the signal amplitude, $c_{kl}(t)$ and $d_{kl}(t)$ are the spreading code and navigation data, $\tau_{kl}(t)$ is the signal delay, $\phi_{kl}(t)$ is the carrier phase (which includes the Doppler shift), and $\eta(t)$ is zero-mean white Gaussian noise. The TwinRX daughterboards of the X310 filter and down-convert each band directly to baseband and sample it at $f_s = 1/T_s$, so that each channel of a recording holds the complex baseband samples (subscripts $k$, $l$ omitted from now on)
+\begin{equation}
+  \label{eq:baseband-signal}
+  y[n] = A[n]\, e^{j\phi[n]}\, c(nT_s - \tau[n])\, d(nT_s - \tau[n]) + \eta[n] = y_\mathrm{I}[n] + j y_\mathrm{Q}[n],
+\end{equation}
+with the short notations $A[n] = A(nT_s)$, $\tau[n] = \tau(nT_s)$, $\phi[n] = \phi(nT_s)$. The phase $\phi[n]$ also holds the instabilities of the X310's local oscillator, which is disciplined by an external 10~MHz reference. Ionospheric scintillation shows up as fast fluctuations of the amplitude $A[n]$ (amplitude scintillation) and of the phase $\phi[n]$ (phase scintillation).
+
+\paragraph{Phase and delay model.} The carrier phase and the signal delay can be decomposed into \cite{wendlerScintillationProcessingSoftware2016}
+\begin{align}
+  \phi(t) &= \frac{2\pi}{\lambda_\mathrm{c}} \Big( r(t) + c\big(\tau^{\mathrm{clk,s}}(t) - \tau^{\mathrm{clk,r}}(t)\big) + \tau^{\mathrm{tro}}(t) - \tau^{\mathrm{ion}}(t) \Big) + \eta^\phi, \\
+  \tau(t) &= \frac{1}{c} \Big( r(t) + c\big(\tau^{\mathrm{clk,s}}(t) - \tau^{\mathrm{clk,r}}(t)\big) + \tau^{\mathrm{tro}}(t) + \tau^{\mathrm{ion}}(t) \Big) + \eta^\tau,
+\end{align}
+where $\lambda_\mathrm{c} = c/f_\mathrm{c}$, $c$ is the speed of light, $r(t)$ is the line-of-sight distance from the satellite to the receiver, $\tau^{\mathrm{clk,s}}(t)$ and $\tau^{\mathrm{clk,r}}(t)$ are the satellite and receiver clock offsets, $\tau^{\mathrm{tro}}(t)$ and $\tau^{\mathrm{ion}}(t)$ are the tropospheric and ionospheric delays, and $\eta^\phi$, $\eta^\tau$ are higher-order noise processes. The ionosphere advances the phase and delays the code, hence the opposite signs. To isolate the scintillation, the slow terms (geometry, clocks, troposphere and the mean ionospheric delay) must be removed: this is the purpose of the detrending steps below.
+
+\section{Correlator outputs}
+\label{sec:correlator-outputs}
+
+The tracking loops of the receiver (Section~\ref{sec:gnss-sdr}) wipe off the carrier with their numerically controlled oscillator (NCO) and correlate the result with a local code replica, over a coherent integration time $T_\mathrm{coh} = M_s T_s$ of $M_s$ samples. The $m$th prompt correlator output reads \cite{wendlerScintillationProcessingSoftware2016}
+\begin{align}
+  I[m] &= \frac{M_s \bar A[m]\, d[m]}{2} R_c(\tau_\mathrm{e}[m]) \operatorname{cos}\big(2\pi f_\mathrm{e}[m]\, m T_\mathrm{coh} + \phi_\mathrm{e}[m]\big) + \eta_{c,\mathrm{I}}[m], \label{eq:prompt-i}\\
+  Q[m] &= \frac{M_s \bar A[m]\, d[m]}{2} R_c(\tau_\mathrm{e}[m]) \operatorname{sin}\big(2\pi f_\mathrm{e}[m]\, m T_\mathrm{coh} + \phi_\mathrm{e}[m]\big) + \eta_{c,\mathrm{Q}}[m], \label{eq:prompt-q}
+\end{align}
+where $\bar A[m]$ is the mean amplitude within the integration interval, $d[m] \in \{-1, 1\}$ is the data symbol, $R_c(\cdot)$ is the code autocorrelation function, $\tau_\mathrm{e}[m]$, $f_\mathrm{e}[m]$ and $\phi_\mathrm{e}[m]$ are the code-delay, frequency and phase errors of the loops, and $\eta_{c,\mathrm{I}}[m]$, $\eta_{c,\mathrm{Q}}[m]$ are zero-mean Gaussian noises of variance $\sigma_n^2/2$ each, with $\sigma_n^2 = N_0/T_\mathrm{coh}$. These are the prompt I/Q outputs dumped by GNSS-SDR's tracking. GNSS-SDR integrates over 1~ms during pull-in and over up to 20~ms once bit-synchronized (10~ms for the L5 and E5a pilots). The scintillation indices are computed from $M$ consecutive outputs such that $M\,T_\mathrm{coh} = 20$~ms, i.e., a 50~Hz signal intensity that never straddles a GPS L1 C/A data-bit transition \cite{lopesLinearTimeinvariantFiltering2023}.
+
+\section{Amplitude scintillation index \texorpdfstring{$S_4$}{S4}}
+\label{sec:s4}
+
+The amplitude scintillation index is the standard deviation of the signal intensity normalized by its mean \cite{briggsVariationRadioStar1963}:
+\begin{equation}
+  \label{eq:s4-definition}
+  S_4 = \sqrt{\frac{\mathrm{E}\big(\rho^2[b]\big) - \mathrm{E}\big(\rho[b]\big)^2}{\mathrm{E}\big(\rho[b]\big)^2}},
+\end{equation}
+where $\rho[b]$ is the signal intensity of the $b$th 20-ms interval and $\mathrm{E}(\cdot)$ is the expectation, replaced, under ergodicity, by the time average over 60~s.
+
+\paragraph{Signal intensity.} Under scintillation, the loop errors are not negligible and the signal energy spreads over $I$ and $Q$, so both are used. The narrow-band and wide-band powers of the $b$th interval are \cite{vandierendonckIonosphericScintillationMonitoring1993,wendlerScintillationProcessingSoftware2016}
+\begin{equation}
+  P[b] = \Big(\sum_{m=1}^{M} I[m]\Big)^2 + \Big(\sum_{m=1}^{M} Q[m]\Big)^2, \qquad
+  \tilde P[b] = \sum_{m=1}^{M} \big(I^2[m] + Q^2[m]\big),
+\end{equation}
+and their difference $\rho[b] = P[b] - \tilde P[b]$ is the raw signal intensity, whose expectation is proportional to $\bar A^2[b]$, without the noise-power offset that $\tilde P[b]$ alone would carry.
+
+\paragraph{Detrending.} The intensity also varies because of the satellite motion (antenna gain, path loss) and multipath, which are not scintillation. Therefore, $\rho[b]$ is filtered by a sixth-order Butterworth low-pass filter $h[b]$ with a 0.1~Hz cut-off frequency, and normalized by the result \cite{vandierendonckIonosphericScintillationMonitoring1993}:
+\begin{equation}
+  \bar\rho[b] = h[b] * \rho[b], \qquad \rho_\mathrm{det}[b] = \frac{\rho[b]}{\bar\rho[b]}.
+\end{equation}
+$\rho_\mathrm{det}[b]$ replaces $\rho[b]$ in the $S_4$ estimate below.
+
+\paragraph{Ambient noise removal.} Even with a constant amplitude, the noise makes the estimated intensity fluctuate, which biases $S_4$ upwards. For a constant amplitude, this noise-induced index is \cite{wendlerScintillationProcessingSoftware2016}
+\begin{equation}
+  S_{4,N_0} = \sqrt{\frac{2}{M T_\mathrm{coh}\, C/N_0} \left(1 + \frac{1}{2(M-1)\, T_\mathrm{coh}\, C/N_0}\right)},
+\end{equation}
+with $C/N_0$ in linear units (Hz). For $T_\mathrm{coh} = 1$~ms and $M = 20$, it reduces to the well-known $S_{4,N_0}^2 = \frac{100}{C/N_0}\left(1 + \frac{500}{19\, C/N_0}\right)$ \cite{vandierendonckIonosphericScintillationMonitoring1993}. The corrected index, using the 60-s average of the $C/N_0$ estimated by the tracking loops, is
+\begin{equation}
+  \label{eq:s4-corrected}
+  S_4 = \sqrt{\frac{\mathrm{E}\big(\rho_\mathrm{det}^2[b]\big) - \mathrm{E}\big(\rho_\mathrm{det}[b]\big)^2}{\mathrm{E}\big(\rho_\mathrm{det}[b]\big)^2} - \frac{2}{M T_\mathrm{coh}\, C/N_0} \left(1 + \frac{1}{2(M-1)\, T_\mathrm{coh}\, C/N_0}\right)},
+\end{equation}
+set to zero when the radicand is negative (no scintillation at all). One value is computed every 60~s per satellite and band, i.e., five per satellite and band in a 5-min recording.
+
+\section{Phase scintillation index \texorpdfstring{$\sigma_\phi$}{sigma-phi}}
+\label{sec:sigma-phi}
+
+The phase scintillation index is the standard deviation of the detrended carrier phase, over 60~s \cite{vandierendonckMeasuringIonosphericScintillation2004}:
+\begin{equation}
+  \sigma_\phi = \sqrt{\mathrm{E}\big(\phi^2\big) - \mathrm{E}\big(\phi\big)^2}.
+\end{equation}
+The phase measured by the $i$th tracking channel holds, besides the scintillation phase $\phi_{\mathrm{sci},i}$, the phase due to the satellite motion $\phi_{\mathrm{sat},i}$, the oscillator instability $\phi_\mathrm{clk}$ (common to all channels), and white noise $\eta_{\phi,i}$ \cite{wendlerScintillationProcessingSoftware2016}:
+\begin{equation}
+  \phi_{\mathrm{e},i} = \phi_{\mathrm{sat},i} + \phi_\mathrm{clk} + \phi_{\mathrm{sci},i} + \eta_{\phi,i}.
+\end{equation}
+These terms are removed in three steps \cite{wendlerScintillationProcessingSoftware2016}:
+\begin{enumerate}
+  \item \textbf{Clock error removal.} The oscillator phase noise is not removed by filtering and would dominate $\sigma_\phi$, which is why scintillation monitors use oven-controlled oscillators \cite{vandierendonckIonosphericScintillationMonitoring1993}. Since $\phi_\mathrm{clk}$ is common to all channels, it cancels in the difference to a reference channel whose satellite shows no phase scintillation (e.g., the highest one):
+  \begin{equation}
+    \phi_{\mathrm{e},i\text{-ref}} = \phi_{\mathrm{e},i} - \phi_{\mathrm{e,ref}} = \phi_{\mathrm{sat},i} - \phi_{\mathrm{sat,ref}} + \phi_{\mathrm{sci},i} + \eta_{\phi,i} - \eta_{\phi,\mathrm{ref}}.
+  \end{equation}
+  \item \textbf{Geometry error removal.} For a static receiver, $\phi_{\mathrm{sat},i} - \phi_{\mathrm{sat,ref}}$ is well modelled by a third-order polynomial over a few minutes. Subtracting a third-order polynomial fit leaves $\phi_{\mathrm{det},i} \approx \phi_{\mathrm{sci},i} + \eta_{\phi,i} - \eta_{\phi,\mathrm{ref}}$.
+  \item \textbf{Low-frequency component removal.} The remaining slow variations, which are not due to scintillation, are removed by a sixth-order Butterworth high-pass filter (a cascade of three second-order sections) with a 0.1~Hz cut-off frequency, and $\sigma_\phi$ is computed from its output.
+\end{enumerate}
+
+\section{Scintillation severity classes and storage}
+\label{sec:scintillation-classes}
+
+The scintillation indices are compared with preset thresholds, which are empirical and vary with the application \cite{vandierendonckMeasuringIonosphericScintillation2004,jiaoComparisonEffectHighlatitude2015}. Following the usual amplitude-based detection, every 60-s $S_4$ value is assigned to one of the three severity classes of Table~\ref{tab:scintillation-classes} \cite{jiaoComparisonEffectHighlatitude2015}. To exclude multipath and noisy measurements, only satellites above a $30^\circ$ elevation mask with $C/N_0 \geq 37$~dB-Hz are considered, and the index must stay within the class thresholds for at least 30~s. A recording takes the highest class reached by any of its satellites and bands. $\sigma_\phi$ is reported alongside $S_4$, but it does not decide the class, since it depends on the stability of the receiver's oscillator.
+
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|l|c|l|}
+    \hline
+    \textbf{Class} & \textbf{$S_4$ (60 s)} & \textbf{Storage of the recording} \\
+    \hline
+    No (or weak) scintillation & $S_4 \leq 0.2$ & deleted after the 15-day cycle \\
+    \hline
+    Moderate scintillation & $0.2 < S_4 \leq 0.5$ & permanent storage (Part~\ref{part:permanent}) \\
+    \hline
+    Strong scintillation & $S_4 > 0.5$ & permanent storage (Part~\ref{part:permanent}) \\
+    \hline
+  \end{tabular}
+  \caption{Scintillation severity classes and what is done with each recording at the end of its 15-day cycle.}
+  \label{tab:scintillation-classes}
+\end{table}
+
+Thus, only the recordings with moderate or strong scintillation are kept: they are moved to the permanent storage, while the recordings with no scintillation are deleted (Methodology, Part~\ref{part:data-collection}).
+
+\newpage
+
+\part{Temporary GNSS data}
+\label{part:recordings}
+
+This part holds the recordings of the last 15 recording days (days with at least one recording), with all the outputs derived from them so far. This data is temporary: at the end of each 15-day cycle, only the recordings with moderate or strong scintillation (Section~\ref{sec:scintillation-classes}) are moved to the permanent storage (Part~\ref{part:permanent}), the others are deleted, and this part is overwritten with the new 15 days. Older days are kept in the repository history.
+
+Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when recordings were made. The color of each day indicates how many recordings were made on that day: \textcolor{green}{green} means 2 recordings, \textcolor{blue}{blue} means 1 recording, and no color means no recording was made.
 
 \begin{table}[H]
   \centering
@@ -181,105 +400,9 @@ Table \ref{tab:recording-calendar} shows the days when recordings were made. The
   % PLACEHOLDER
   \\[2ex]
   \end{tabular}
-  \caption{Recording calendar.}
-  \label{tab:recording-calendar}
+  \caption{Temporary recording calendar.}
+  \label{tab:temporary-calendar}
 \end{table}
-
-\section{Validating the recordings with GNSS-SDR}\label{sec:gnss-sdr}
-
-A recording is only useful if a GNSS receiver can use it: find the satellites in it, track their signals, decode their navigation messages, and compute a position. To show that, every recording is processed with GNSS-SDR\footnote{\url{https://gnss-sdr.org}, v0.0.20.}, an open-source software-defined GNSS receiver, and the output of each of its stages is added to the report of that recording (Section~\ref{part:recordings}). Figure~\ref{fig:gnss-sdr-chain} shows the data chain of GNSS-SDR. Each channel (one per satellite signal) runs its own acquisition, tracking and telemetry decoder; observables and PVT combine all of them.
-
-\begin{figure}[H]
-  \centering
-  \resizebox{\linewidth}{!}{%
-  \begin{tikzpicture}[node distance=0.35cm, every node/.style={font=\scriptsize, align=center},
-      block/.style={draw, rounded corners, minimum height=0.9cm, text width=1.45cm, fill=blue!8},
-      arrow/.style={-{Latex[length=1.5mm]}}]
-    \node[block] (src) {Signal\\source};
-    \node[block, below=of src] (cond) {Signal\\conditioner};
-    \node[block, below=of cond] (acq) {Acquisition};
-    \node[block, right=of acq] (trk) {Tracking};
-    \node[block, right=of trk] (tlm) {Telemetry\\decoder};
-    \node[block, below=of tlm] (obs) {Observables};
-    \node[block, below=of obs] (pvt) {PVT};
-    \foreach \a/\b in {src/cond, cond/acq, acq/trk, trk/tlm, tlm/obs, obs/pvt} \draw[arrow] (\a) -- (\b);
-    \draw[dashed, rounded corners] ($(acq.north west)+(-0.12,0.25)$) rectangle ($(tlm.south east)+(0.12,-0.25)$);
-    \node[right=0.3cm of tlm, text width=2.1cm, align=left] {one channel per satellite signal};
-  \end{tikzpicture}}
-  \caption{GNSS-SDR receiver chain.}
-  \label{fig:gnss-sdr-chain}
-\end{figure}
-
-\paragraph{Processing setup.} Both channels of a recording are read by one \texttt{Multichannel\_File\_Signal\_Source}, so the two bands advance in lockstep (with one independent source per band, one band runs ahead of the other and its measurements are discarded). That source reads both files at one rate: the 4~MS/s L1 C/A file of the L1/L5 recordings is upsampled 5 times (each sample repeated) to the 20~MS/s of L5 before GNSS-SDR. GNSS-SDR v0.0.20's position (RTKLIB, single point) is computed per run as follows:
-\begin{itemize}
-  \item \textbf{First recording, GPS run} (GPS L1 C/A + L5): from L1 C/A only (broadcast ionosphere model), since its dual-frequency solver was unstable with the few L5-capable GPS satellites in view. The ionosphere-free GPS L1 C/A + L5 position is computed outside GNSS-SDR, from its observables and decoded ephemeris, with our own single-point positioning (\texttt{gnss\_spp\_lib.py}).
-  \item \textbf{First recording, Galileo run} (Galileo E1-B/C + E5a): GNSS-SDR's own dual-frequency, ionosphere-free (\texttt{Iono-Free-LC}) position. Every Galileo satellite broadcasts both E1 and E5a, so all satellites in view count, unlike GPS L5.
-  \item \textbf{Second recording} (GPS L1 C/A + L2C + Galileo E1-B/C): GNSS-SDR's own single-frequency, multi-constellation position from GPS L1 C/A and Galileo E1 together (broadcast ionosphere model; RTKLIB estimates the GPS--Galileo clock offset). GNSS-SDR's solver ignores L2C, so the ionosphere-free GPS L1 C/A + L2C position again comes from \texttt{gnss\_spp\_lib.py}.
-\end{itemize}
-The Galileo run's stages are reported after the GPS run's, with ``(Galileo E1 + E5a)'' in their headings; its signal source is the same recording, so that stage is not repeated.
-
-\subsection{Signal source}
-Reads the recorded I/Q samples (here, the SigMF data files) and delivers them as a stream, one per channel. GNSS-SDR has no output of its own here, so the recording itself is examined.
-\begin{itemize}
-  \item \textbf{Power spectral density} per channel: the shape of the receiver passband over a flat thermal-noise floor. GNSS signals are 15--20~dB below the noise, so they are invisible here; a narrow peak would be interference.
-  \item \textbf{I/Q histograms}: should be Gaussian, centred on zero, and far from the integer limits (no clipping).
-  \item \textbf{Table}: format, rate and gain per channel, I/Q standard deviation and mean, percentage of clipped values, and samples lost during the recording (overflows, zero-filled).
-\end{itemize}
-
-\subsection{Signal conditioner}
-Adapts the samples to what the channels process: converts the file format (signed 8- or 16-bit interleaved I/Q) to complex floating point (data type adapter), optionally filters (input filter) and resamples (resampler).
-\begin{itemize}
-  \item \textbf{Table} per channel: file format, data type adapter, filter, resampling, and rate before and after.
-\end{itemize}
-
-\subsection{Acquisition}
-Detects which satellites are present and gives a first, coarse estimate of each one's code delay and Doppler shift, by correlating the signal with the satellite's spreading code over a two-dimensional grid of delays and Doppler frequencies, and comparing the peak with a detection threshold (set by the probability of false alarm). With dual-frequency assistance, the second band (GPS L5 or L2C, Galileo E5a) is only searched for satellites already tracked on L1/E1, around their L1/E1 Doppler scaled to the second frequency. Galileo E1 uses a 4-ms code (BOC(1,1) modulation), so its correlation peak is narrower and has side peaks.
-\begin{itemize}
-  \item \textbf{Delay--Doppler map} (surface plot) of the strongest detection per band: a single sharp peak well above the floor.
-  \item \textbf{Table}: search attempts, detections and detected satellites, and the best test statistic relative to the threshold. Attempts on satellites that are not in view, or that do not broadcast that band (L5 is only on Block IIF and III satellites, L2C on IIR-M, IIF and III), are rejected.
-\end{itemize}
-
-\subsection{Tracking}
-Follows each detected signal with a delay-lock loop (code) and a phase-lock loop (carrier), producing every 1--20~ms the prompt correlator output (which carries the navigation data bits), the carrier-to-noise density ratio $C/N_0$, the Doppler, the code, and carrier phases.
-\begin{itemize}
-  \item \textbf{$C/N_0$ and Doppler versus time} per satellite and band: $C/N_0$ of roughly 35--50~dB-Hz for an open-sky antenna, and smooth Doppler curves following the satellite motion.
-  \item \textbf{Prompt I/Q scatter} of the strongest satellite per band: with the carrier phase locked, the energy sits on the in-phase axis in two clusters (the $\pm1$ data bits), or in for the dataless pilot components that Galileo is tracked on (E1-C, E5a-Q), the $\pm1$ chips of their secondary code; without phase lock it would be a ring. Each point is one prompt correlator output, the received samples $x[n]$ multiplied by the local code replica $c$ aligned at the estimated code delay $\hat\tau$ and by the local carrier replica (estimated Doppler $\hat f_D$ and phase $\hat\phi$), summed over the $N$ samples of one integration period ($T_s$: sampling period):
-  \begin{equation}
-    P = \sum_{n=1}^{N} x[n]\,c[n-\hat\tau]\,e^{-j(2\pi \hat f_D n T_s + \hat\phi)} = I + jQ.
-  \end{equation}
-  \item \textbf{Loop errors versus time} per satellite and band: the PLL carrier-phase error (degrees) and the DLL code-delay error (chips), i.e. the discriminator outputs the loops drive to zero. Noise centred on zero means clean tracking; jumps would mark cycle slips or a loop losing lock.
-  \item \textbf{Table} per satellite: median $C/N_0$, percentage of time phase-locked, losses of lock, time tracked, and the standard deviation of the PLL and DLL errors.
-\end{itemize}
-
-\subsection{Telemetry decoder}
-Synchronizes to the navigation-message bits and frames, checks their parity/CRC (Cyclic Redundancy Check), decodes the ephemeris (orbit and satellite clock), and time-stamps every measurement with the satellite's transmit time (time of week). GPS L1 C/A carries the legacy LNAV message (6-s subframes); L2C and L5 carry CNAV (12-s and 6-s messages). Galileo E1-B carries I/NAV (2-s pages) and E5a-I F/NAV (10-s pages).
-\begin{itemize}
-  \item \textbf{Timeline} per band and satellite of when a valid transmit time was available.
-  \item \textbf{Table}: messages decoded, ephemeris obtained, and when the first valid time of week came.
-\end{itemize}
-
-\subsection{Observables}
-Aligns all channels on common receiver epochs and forms, for each satellite and band, the pseudorange (from transmit and receive times), the accumulated carrier phase and the Doppler. These are the measurements a positioning algorithm uses; GNSS-SDR also writes them to a RINEX observation file.
-\begin{itemize}
-  \item \textbf{Availability} of valid pseudoranges per band and satellite over the recording.
-  \item \textbf{Second band minus L1/E1 pseudorange} per satellite: the same constant for every satellite (the receiver's inter-band hardware bias) plus the slowly varying, satellite-dependent ionospheric delay difference (metres). It proves that both bands measure the same satellites consistently.
-  \item \textbf{Table} per satellite: common epochs, mean, standard deviation and drift of that difference.
-\end{itemize}
-
-\subsection{PVT}
-Computes position, velocity and receiver clock (PVT) from the pseudoranges and the decoded ephemeris. The antenna position was surveyed: $-23.209433^\circ$, $-45.874875^\circ$, 596.42~m (WGS-84), so the errors below are true errors, not just scatter.
-\begin{itemize}
-  \item \textbf{Horizontal error scatter and east/north/up error versus time} for GNSS-SDR's own solution of each run and, for the GPS runs, \texttt{gnss\_spp\_lib.py}'s dual-frequency ionosphere-free solution. Single-frequency single-point positioning is expected to stay within a few metres horizontally and ${\sim}10$~m vertically; the iono-free combination removes the ionospheric bias but amplifies the code noise about three times.
-  \item \textbf{Sky plot} of the GPS satellites used by \texttt{gnss\_spp\_lib.py}.
-  \item \textbf{Table}: mean error (accuracy), standard deviation (precision), 2-D and 3-D RMS, and 95\% horizontal error.
-\end{itemize}
-
-\newpage
-
-\part{Recording reports}
-\label{part:recordings}
-
-This part holds the last 15 recording days (days with at least one recording), so that the report stays small enough to be shared; older days are still listed in the recording calendar (Table~\ref{tab:recording-calendar}) and kept in the repository history.
 
 \section{Records on 08/10/2026}
 
@@ -882,5 +1005,26 @@ This part holds the last 15 recording days (days with at least one recording), s
 \end{table}
 
 \input{gnss_sdr/x310_20261026T193001Z/results.tex}
+
+
+\part{Permanent scintillating data}
+\label{part:permanent}
+
+This part holds the recordings classified with moderate or strong scintillation (Section~\ref{sec:scintillation-classes}), which are kept in the permanent NAS storage. To keep the report small enough to be shared, each recording is shown with its metadata and its scintillation outputs only; the full GNSS-SDR outputs are shown while the recording is in Part~\ref{part:recordings}.
+
+Table~\ref{tab:permanent-calendar} shows the days of the permanently stored recordings, with the same colors as the temporary calendar: \textcolor{green}{green} means 2 recordings, \textcolor{blue}{blue} means 1 recording, and no color means no recording was stored.
+
+\begin{table}[H]
+  \centering
+  \begin{tabular}{ccc}
+  \multicolumn{3}{c}{\textit{No recording stored yet.}} \\[2ex]
+  \end{tabular}
+  \caption{Permanent recording calendar.}
+  \label{tab:permanent-calendar}
+\end{table}
+
+No recording has been classified and stored permanently yet.
+
+\printbibliography
 
 \end{document}

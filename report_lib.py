@@ -1,5 +1,6 @@
 """LaTeX side of the report (report/main.tex): read the recordings' metadata, append each recording to the
-"Recording reports" part, refresh the recording calendar, and compile the PDF.
+"Temporary GNSS data" part (the last 15 recording days), refresh the temporary and permanent recording calendars, and
+compile the PDF.
 
 Used by update_report.py (after every recording, from systemd/x310-record.sh), by gnss_sdr_out2tex.py
 (tex_escape) and by send_whatsapp_msg.py (load_sessions, compile_report_pdf for the 15-day WhatsApp message).
@@ -17,9 +18,15 @@ from datetime import datetime
 from pathlib import Path
 
 ORDINALS = ["First", "Second", "Third", "Fourth", "Fifth"]  # per-day record count never exceeds 2 in practice
-# the "Recording reports" part keeps only this many most recent recording days (days with at least one recording), so
-# the PDF stays under WhatsApp's ~18 MB document limit (~1 MB per day); older days stay in the calendar and in git
+# the "Temporary GNSS data" part keeps only this many most recent recording days (days with at least one recording), so
+# the PDF stays under WhatsApp's ~18 MB document limit (~1 MB per day); older days stay in git
 KEPT_RECORDING_DAYS = 15
+# the "Temporary GNSS data" part (day sections, appended and pruned here) ends where the permanent-data part starts
+PERMANENT_PART_MARKER = r"\part{Permanent scintillating data}"
+TEMPORARY_CALENDAR_CAPTION = "Temporary recording calendar."
+TEMPORARY_CALENDAR_LABEL = "tab:temporary-calendar"
+PERMANENT_CALENDAR_CAPTION = "Permanent recording calendar."
+PERMANENT_CALENDAR_LABEL = "tab:permanent-calendar"
 BAND_NAMES = {1575.42: "L1", 1227.60: "L2", 1176.45: "L5"}  # GPS carrier [MHz] -> band name
 
 
@@ -171,7 +178,8 @@ def session_subsection_tex(session, record_number, tex_dir=Path("report")):
     return "\n".join(lines)
 
 
-_LATEX_ERROR_RE = re.compile(r"^! |LaTeX Error:|Emergency stop|Fatal error occurred", re.MULTILINE)
+# with -file-line-error, errors are logged as "./main.tex:185: <message>" instead of "! <message>"
+_LATEX_ERROR_RE = re.compile(r"^! |^\S+\.tex:\d+: |LaTeX Error:|Emergency stop|Fatal error occurred", re.MULTILINE)
 LATEX_FLAGS = ["-shell-escape", "-interaction=nonstopmode", "-file-line-error"]  # as report/Makefile
 
 
@@ -190,16 +198,24 @@ def compile_report_pdf(tex_path):
     """Compile tex_path with pdflatex (twice, so cross-references resolve) into a private temporary directory, and
     only then replace <tex_path>.pdf with the result. Building elsewhere matters: an editor that rebuilds the
     report on every change (LaTeX Workshop runs report/Makefile in report/) would otherwise write the same
-    main.aux/main.log at the same time, and one of the two builds fails ("I can't find file main.aux"). biber and
-    makeglossaries are skipped: the report has no citations and no printed glossary.
+    main.aux/main.log at the same time, and one of the two builds fails ("I can't find file main.aux"). biber runs
+    between the two passes (the scintillation part cites refs.bib); makeglossaries is skipped: no printed glossary.
     pdflatex's nonstopmode still writes a PDF after real LaTeX errors, so the log is checked for them too; on any
     error the existing PDF is left untouched and SystemExit is raised."""
     pdflatex = find_pdflatex()
+    biber = Path(pdflatex).with_name("biber")  # from the same TeX Live install
     pdf_path = tex_path.with_suffix(".pdf")
     with tempfile.TemporaryDirectory(prefix="report-build-") as build:
-        for _ in range(2):
+        for latex_pass in range(2):
             result = subprocess.run([pdflatex, *LATEX_FLAGS, f"-output-directory={build}", tex_path.name],
-                                    cwd=tex_path.parent, capture_output=True, text=True)
+                                    cwd=tex_path.parent, capture_output=True, text=True, errors="replace")
+            if latex_pass == 0:
+                # cwd: refs.bib is found next to main.tex; main.bcf/main.bbl live in the build directory
+                bib = subprocess.run([biber if biber.exists() else "biber", f"--output-directory={build}",
+                                      str(Path(build) / tex_path.stem)],
+                                     cwd=tex_path.parent, capture_output=True, text=True, errors="replace")
+                if bib.returncode != 0:
+                    print(f"warning: biber failed, citations will show as [?]:\n{bib.stdout[-1000:]}")
         built_pdf = Path(build) / pdf_path.name
         log = (Path(build) / tex_path.with_suffix(".log").name)
         log_text = log.read_text(errors="replace") if log.exists() else ""
@@ -227,7 +243,7 @@ def _day_ordinal(session, all_sessions):
 
 def append_to_report(sessions, tex_path, all_sessions):
     """Append one \\section per day (each holding a \\subsection per recording that
-    day) to tex_path's document (the "Recording reports" \\part), just before \\end{document}. all_sessions (every session
+    day) to tex_path's "Temporary GNSS data" \\part, just before PERMANENT_PART_MARKER. all_sessions (every session
     on disk, not just the ones being appended) is what makes the First/Second/... ordinal
     correct across several update_report.py runs on the same day.
 
@@ -245,7 +261,11 @@ def append_to_report(sessions, tex_path, all_sessions):
         return
 
     text = tex_path.read_text()
-    existing_days = re.findall(r"\\section\{Records on (\d{2}/\d{2}/\d{4})\}", text)
+    marker = PERMANENT_PART_MARKER
+    if marker not in text:
+        print(f"warning: no {marker!r} found in {tex_path}, skipping LaTeX report update")
+        return
+    existing_days = re.findall(r"\\section\{Records on (\d{2}/\d{2}/\d{4})\}", text[:text.index(marker)])
     current_day = existing_days[-1] if existing_days else None
 
     blocks = []
@@ -255,11 +275,6 @@ def append_to_report(sessions, tex_path, all_sessions):
             blocks.append(f"\\section{{Records on {date_str}}}")
             current_day = date_str
         blocks.append(session_subsection_tex(s, _day_ordinal(s, all_sessions), tex_path.parent))
-
-    marker = r"\end{document}"
-    if marker not in text:
-        print(f"warning: no {marker!r} found in {tex_path}, skipping LaTeX report update")
-        return
 
     insertion = "\n" + "\n\n".join(blocks) + "\n\n"
     text = text.replace(marker, insertion + marker, 1)
@@ -273,11 +288,13 @@ _DAY_SECTION_RE = re.compile(r"^\\section\{Records on (\d{2}/\d{2}/\d{4})\}$", r
 def prune_old_days(tex_path, keep_days=KEPT_RECORDING_DAYS):
     """Drop every "Records on dd/mm/yyyy" \\section but the keep_days most recent ones from tex_path, together with the
     GNSS-SDR figures and tables (gnss_sdr/<name>/) its recordings \\input. Each day section runs up to the next one,
-    or to \\end{document} for the last. Returns the removed days."""
+    or to PERMANENT_PART_MARKER for the last; the permanent part after it is never touched. Returns the removed
+    days."""
     if not tex_path.exists():
         return []
     text = tex_path.read_text()
-    starts = list(_DAY_SECTION_RE.finditer(text))
+    temporary_end = text.find(PERMANENT_PART_MARKER)
+    starts = list(_DAY_SECTION_RE.finditer(text, 0, temporary_end if temporary_end >= 0 else len(text)))
     if len(starts) <= keep_days:
         return []
     cut_from, cut_to = starts[0].start(), starts[-keep_days].start()
@@ -336,15 +353,20 @@ def calendar_tikz_block(year, month, day_counts):
     ])
 
 
-_CALENDAR_TABLE_RE = re.compile(r"\\begin\{table\}\[H\].*?Recording calendar\..*?\\end\{table\}", re.DOTALL)
+def _calendar_table_re(caption):
+    """The table whose caption is caption, never spanning another table (one \\begin...\\end{table} pair): the
+    temporary calendar comes after many metadata tables."""
+    return re.compile(r"\\begin\{table\}\[H\](?:(?!\\end\{table\}).)*?" + re.escape(caption)
+                      + r".*?\\end\{table\}", re.DOTALL)
 
 
-def calendar_table_tex(all_sessions):
+def calendar_table_tex(sessions, caption, label):
     """Build the whole calendar table: one \\tikzpicture per (year, month) that has at
     least one recording, 3 per row (matching the hand-written original's ccc layout),
-    padding any trailing empty cells with '% PLACEHOLDER' like the original did."""
+    padding any trailing empty cells with '% PLACEHOLDER' like the original did. Without any session, a one-line
+    note with the same caption, so that the next update still finds the table."""
     day_counts = defaultdict(int)
-    for s in all_sessions:
+    for s in sessions:
         day_counts[s["datetime"].date()] += 1
 
     months = sorted({(d.year, d.month) for d in day_counts})
@@ -356,6 +378,8 @@ def calendar_table_tex(all_sessions):
         while len(cells) < 3:
             cells.append("  % PLACEHOLDER")
         rows.append("\n  &\n".join(cells) + "\n  \\\\[2ex]")
+    if not rows:
+        rows = [r"  \multicolumn{3}{c}{\textit{No recording stored yet.}} \\[2ex]"]
 
     return "\n".join([
         r"\begin{table}[H]",
@@ -364,24 +388,24 @@ def calendar_table_tex(all_sessions):
         "\n".join(rows),
         r"  \end{tabular}",
         # the colours are explained in the text above the table, which refers to it by this label
-        r"  \caption{Recording calendar.}",
-        r"  \label{tab:recording-calendar}",
+        f"  \\caption{{{caption}}}",
+        f"  \\label{{{label}}}",
         r"\end{table}",
     ])
 
 
-def update_calendar_table(tex_path, all_sessions):
-    """Replace the existing 'Recording calendar' table in tex_path with a freshly
-    generated one covering every month with at least one recording. Uses a plain slice
+def update_calendar_table(tex_path, sessions, caption, label):
+    """Replace the existing calendar table captioned caption in tex_path with a freshly
+    generated one covering every month of sessions with at least one recording. Uses a plain slice
     replacement (not re.sub's replacement string) since the generated LaTeX is full of
     backslashes that re.sub would otherwise try to interpret as backreferences."""
-    if not tex_path.exists() or not all_sessions:
+    if not tex_path.exists():
         return
     text = tex_path.read_text()
-    m = _CALENDAR_TABLE_RE.search(text)
+    m = _calendar_table_re(caption).search(text)
     if not m:
-        print(f"warning: no 'Recording calendar' table found in {tex_path}, skipping calendar update")
+        print(f"warning: no {caption!r} table found in {tex_path}, skipping calendar update")
         return
-    text = text[:m.start()] + calendar_table_tex(all_sessions) + text[m.end():]
+    text = text[:m.start()] + calendar_table_tex(sessions, caption, label) + text[m.end():]
     tex_path.write_text(text)
-    print(f"updated calendar table in {tex_path}")
+    print(f"updated {caption!r} table in {tex_path}")
