@@ -511,7 +511,7 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
 
 \section{Records on 08/10/2026}
 
-\subsection{First record}
+\subsection{RC0}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -552,9 +552,11 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261008T222630Z}, captured starting 2026-10-08T22:26:37.215640Z.}
 \end{table}
 
+\textit{GNSS-SDR processing of this recording is not available.}
+
 \section{Records on 13/10/2026}
 
-\subsection{First record}
+\subsection{RC0}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -595,7 +597,9 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261013T215749Z}, captured starting 2026-10-13T21:57:56.746726Z.}
 \end{table}
 
-\subsection{Second record}
+\textit{GNSS-SDR processing of this recording is not available.}
+
+\subsection{RC1}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -636,10 +640,11 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261013T220835Z}, captured starting 2026-10-13T22:08:41.589855Z.}
 \end{table}
 
+\textit{GNSS-SDR processing of this recording is not available.}
 
 \section{Records on 22/10/2026}
 
-\subsection{First record}
+\subsection{RC0}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -650,7 +655,7 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
     \hline
     Frequency & 1575.420 MHz (L1) & 1176.450 MHz (L5) \\
     \hline
-    Duration & 300.0 s & 300.0 s \\
+    Duration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{300.0 s} \\
     \hline
     Sample rate & 4.000 MS/s & 20.000 MS/s \\
     \hline
@@ -682,11 +687,18 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261022T190000Z}, captured starting 2026-10-22T19:00:06.973177Z.}
 \end{table}
 
+\subsection{RC0-sol0}
 \input{gnss_sdr/x310_20261022T190000Z/results.tex}
+
+\subsection{RC0-sol1}
+Computed by \texttt{gnss\_spp\_lib.py} from the same GNSS-SDR run as RC0-sol0, whose receiver stages (signal source to observables) are shown there; only the position solution differs.
+\input{gnss_sdr/x310_20261022T190000Z/results_spp.tex}
+
+\subsection{RC0-sol2}
+A further GNSS-SDR run of the same recording; its signal source is shown in RC0-sol0.
 \input{gnss_sdr/x310_20261022T190000Z/results_galileo.tex}
 
-
-\subsection{Second record}
+\subsection{RC1}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -697,9 +709,9 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
     \hline
     Frequency & 1575.420 MHz (L1) & 1227.600 MHz (L2) \\
     \hline
-    Duration & 300.0 s & 300.0 s \\
+    Duration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{300.0 s} \\
     \hline
-    Sample rate & 4.000 MS/s & 4.000 MS/s \\
+    Sample rate & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{4.000 MS/s} \\
     \hline
     Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 16-bit samples (I+Q), little-endian, as received from the X310 (sc16)} \\
     \hline
@@ -729,12 +741,16 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261022T193000Z}, captured starting 2026-10-22T19:30:07.040026Z.}
 \end{table}
 
+\subsection{RC1-sol0}
 \input{gnss_sdr/x310_20261022T193000Z/results.tex}
 
+\subsection{RC1-sol1}
+Computed by \texttt{gnss\_spp\_lib.py} from the same GNSS-SDR run as RC1-sol0, whose receiver stages (signal source to observables) are shown there; only the position solution differs.
+\input{gnss_sdr/x310_20261022T193000Z/results_spp.tex}
 
 \section{Records on 23/10/2026}
 
-\subsection{First record}
+\subsection{RC0}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -745,7 +761,7 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
     \hline
     Frequency & 1575.420 MHz (L1) & 1176.450 MHz (L5) \\
     \hline
-    Duration & 300.0 s & 300.0 s \\
+    Duration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{300.0 s} \\
     \hline
     Sample rate & 4.000 MS/s & 20.000 MS/s \\
     \hline
@@ -777,11 +793,18 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261023T190000Z}, captured starting 2026-10-23T19:00:06.932068Z.}
 \end{table}
 
+\subsection{RC0-sol0}
 \input{gnss_sdr/x310_20261023T190000Z/results.tex}
+
+\subsection{RC0-sol1}
+Computed by \texttt{gnss\_spp\_lib.py} from the same GNSS-SDR run as RC0-sol0, whose receiver stages (signal source to observables) are shown there; only the position solution differs.
+\input{gnss_sdr/x310_20261023T190000Z/results_spp.tex}
+
+\subsection{RC0-sol2}
+A further GNSS-SDR run of the same recording; its signal source is shown in RC0-sol0.
 \input{gnss_sdr/x310_20261023T190000Z/results_galileo.tex}
 
-
-\subsection{Second record}
+\subsection{RC1}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -792,9 +815,9 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
     \hline
     Frequency & 1575.420 MHz (L1) & 1227.600 MHz (L2) \\
     \hline
-    Duration & 300.0 s & 300.0 s \\
+    Duration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{300.0 s} \\
     \hline
-    Sample rate & 4.000 MS/s & 4.000 MS/s \\
+    Sample rate & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{4.000 MS/s} \\
     \hline
     Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 16-bit samples (I+Q), little-endian, as received from the X310 (sc16)} \\
     \hline
@@ -824,12 +847,16 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261023T193310Z}, captured starting 2026-10-23T19:33:16.661684Z.}
 \end{table}
 
+\subsection{RC1-sol0}
 \input{gnss_sdr/x310_20261023T193310Z/results.tex}
 
+\subsection{RC1-sol1}
+Computed by \texttt{gnss\_spp\_lib.py} from the same GNSS-SDR run as RC1-sol0, whose receiver stages (signal source to observables) are shown there; only the position solution differs.
+\input{gnss_sdr/x310_20261023T193310Z/results_spp.tex}
 
 \section{Records on 24/10/2026}
 
-\subsection{First record}
+\subsection{RC0}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -840,7 +867,7 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
     \hline
     Frequency & 1575.420 MHz (L1) & 1176.450 MHz (L5) \\
     \hline
-    Duration & 300.0 s & 300.0 s \\
+    Duration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{300.0 s} \\
     \hline
     Sample rate & 4.000 MS/s & 20.000 MS/s \\
     \hline
@@ -872,11 +899,18 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261024T190000Z}, captured starting 2026-10-24T19:00:07.446070Z.}
 \end{table}
 
+\subsection{RC0-sol0}
 \input{gnss_sdr/x310_20261024T190000Z/results.tex}
+
+\subsection{RC0-sol1}
+Computed by \texttt{gnss\_spp\_lib.py} from the same GNSS-SDR run as RC0-sol0, whose receiver stages (signal source to observables) are shown there; only the position solution differs.
+\input{gnss_sdr/x310_20261024T190000Z/results_spp.tex}
+
+\subsection{RC0-sol2}
+A further GNSS-SDR run of the same recording; its signal source is shown in RC0-sol0.
 \input{gnss_sdr/x310_20261024T190000Z/results_galileo.tex}
 
-
-\subsection{Second record}
+\subsection{RC1}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -887,9 +921,9 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
     \hline
     Frequency & 1575.420 MHz (L1) & 1227.600 MHz (L2) \\
     \hline
-    Duration & 300.0 s & 300.0 s \\
+    Duration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{300.0 s} \\
     \hline
-    Sample rate & 4.000 MS/s & 4.000 MS/s \\
+    Sample rate & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{4.000 MS/s} \\
     \hline
     Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 16-bit samples (I+Q), little-endian, as received from the X310 (sc16)} \\
     \hline
@@ -919,12 +953,16 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261024T193000Z}, captured starting 2026-10-24T19:30:07.284275Z.}
 \end{table}
 
+\subsection{RC1-sol0}
 \input{gnss_sdr/x310_20261024T193000Z/results.tex}
 
+\subsection{RC1-sol1}
+Computed by \texttt{gnss\_spp\_lib.py} from the same GNSS-SDR run as RC1-sol0, whose receiver stages (signal source to observables) are shown there; only the position solution differs.
+\input{gnss_sdr/x310_20261024T193000Z/results_spp.tex}
 
 \section{Records on 25/10/2026}
 
-\subsection{First record}
+\subsection{RC0}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -935,7 +973,7 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
     \hline
     Frequency & 1575.420 MHz (L1) & 1176.450 MHz (L5) \\
     \hline
-    Duration & 300.0 s & 300.0 s \\
+    Duration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{300.0 s} \\
     \hline
     Sample rate & 4.000 MS/s & 20.000 MS/s \\
     \hline
@@ -967,11 +1005,18 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261025T190000Z}, captured starting 2026-10-25T19:00:07.043233Z.}
 \end{table}
 
+\subsection{RC0-sol0}
 \input{gnss_sdr/x310_20261025T190000Z/results.tex}
+
+\subsection{RC0-sol1}
+Computed by \texttt{gnss\_spp\_lib.py} from the same GNSS-SDR run as RC0-sol0, whose receiver stages (signal source to observables) are shown there; only the position solution differs.
+\input{gnss_sdr/x310_20261025T190000Z/results_spp.tex}
+
+\subsection{RC0-sol2}
+A further GNSS-SDR run of the same recording; its signal source is shown in RC0-sol0.
 \input{gnss_sdr/x310_20261025T190000Z/results_galileo.tex}
 
-
-\subsection{Second record}
+\subsection{RC1}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -982,9 +1027,9 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
     \hline
     Frequency & 1575.420 MHz (L1) & 1227.600 MHz (L2) \\
     \hline
-    Duration & 300.0 s & 300.0 s \\
+    Duration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{300.0 s} \\
     \hline
-    Sample rate & 4.000 MS/s & 4.000 MS/s \\
+    Sample rate & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{4.000 MS/s} \\
     \hline
     Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 16-bit samples (I+Q), little-endian, as received from the X310 (sc16)} \\
     \hline
@@ -1014,12 +1059,16 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261025T195201Z}, captured starting 2026-10-25T19:52:09.046382Z.}
 \end{table}
 
+\subsection{RC1-sol0}
 \input{gnss_sdr/x310_20261025T195201Z/results.tex}
 
+\subsection{RC1-sol1}
+Computed by \texttt{gnss\_spp\_lib.py} from the same GNSS-SDR run as RC1-sol0, whose receiver stages (signal source to observables) are shown there; only the position solution differs.
+\input{gnss_sdr/x310_20261025T195201Z/results_spp.tex}
 
 \section{Records on 26/10/2026}
 
-\subsection{First record}
+\subsection{RC0}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -1030,7 +1079,7 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
     \hline
     Frequency & 1575.420 MHz (L1) & 1176.450 MHz (L5) \\
     \hline
-    Duration & 300.0 s & 300.0 s \\
+    Duration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{300.0 s} \\
     \hline
     Sample rate & 4.000 MS/s & 20.000 MS/s \\
     \hline
@@ -1062,11 +1111,18 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261026T190001Z}, captured starting 2026-10-26T19:00:08.297684Z.}
 \end{table}
 
+\subsection{RC0-sol0}
 \input{gnss_sdr/x310_20261026T190001Z/results.tex}
+
+\subsection{RC0-sol1}
+Computed by \texttt{gnss\_spp\_lib.py} from the same GNSS-SDR run as RC0-sol0, whose receiver stages (signal source to observables) are shown there; only the position solution differs.
+\input{gnss_sdr/x310_20261026T190001Z/results_spp.tex}
+
+\subsection{RC0-sol2}
+A further GNSS-SDR run of the same recording; its signal source is shown in RC0-sol0.
 \input{gnss_sdr/x310_20261026T190001Z/results_galileo.tex}
 
-
-\subsection{Second record}
+\subsection{RC1}
 \begin{table}[H]
   \centering
   \begin{tabular}{|l|l|l|}
@@ -1077,9 +1133,9 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
     \hline
     Frequency & 1575.420 MHz (L1) & 1227.600 MHz (L2) \\
     \hline
-    Duration & 300.0 s & 300.0 s \\
+    Duration & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{300.0 s} \\
     \hline
-    Sample rate & 4.000 MS/s & 4.000 MS/s \\
+    Sample rate & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{4.000 MS/s} \\
     \hline
     Sample type & \multicolumn{2}{>{\centering\arraybackslash}p{7cm}|}{signed complex 16-bit samples (I+Q), little-endian, as received from the X310 (sc16)} \\
     \hline
@@ -1109,8 +1165,12 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
   \caption{Metadata for recording \texttt{x310\_20261026T193001Z}, captured starting 2026-10-26T19:30:07.793328Z.}
 \end{table}
 
+\subsection{RC1-sol0}
 \input{gnss_sdr/x310_20261026T193001Z/results.tex}
 
+\subsection{RC1-sol1}
+Computed by \texttt{gnss\_spp\_lib.py} from the same GNSS-SDR run as RC1-sol0, whose receiver stages (signal source to observables) are shown there; only the position solution differs.
+\input{gnss_sdr/x310_20261026T193001Z/results_spp.tex}
 
 \part{Permanent scintillating data}
 \label{part:permanent}

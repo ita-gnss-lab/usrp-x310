@@ -1,0 +1,35 @@
+\subsubsection{PVT}
+Position from the pseudoranges and the decoded ephemeris, compared with the surveyed antenna position (-23.209433$^\circ$, -45.874875$^\circ$, 596.42~m).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261025T190000Z/pvt_spp.jpg}
+  \caption{PVT: position error of the gnss\_spp\_lib.py solution with respect to the surveyed antenna position: computed from GNSS-SDR's observables and decoded GPS ephemeris, removing the ionospheric delay with the second band (pseudoranges carrier-smoothed over 100~s).}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.45\linewidth]{gnss_sdr/x310_20261025T190000Z/skyplot.jpg}
+  \caption{PVT: sky plot of the GPS satellites in the gnss\_spp\_lib.py dual-frequency solution (azimuth, elevation) during the recording.}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \footnotesize
+  \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
+  \begin{tabular}{l>{\centering\arraybackslash}p{4.2cm}}
+    \hline
+    \textbf{Solution} & \textbf{gnss\_spp\_lib.py, L1 C/A + L5, iono-free} \\
+    \hline
+    Solutions & 247 \\
+    Run with fix [\%] & 89 \\
+    Mean E / N / U [m] & -8.3 / 10.5 / -0.1 \\
+    Std E / N / U [m] & 6.5 / 9.3 / 12.6 \\
+    RMS 2-D [m] & 17.6 \\
+    RMS 3-D [m] & 21.6 \\
+    95\% horiz. [m] & 29.1 \\
+    \hline
+  \end{tabular}}
+  \caption{PVT: position error statistics with respect to the surveyed antenna (mean = accuracy, std = precision; \% of the run's seconds with a position; gnss\_spp\_lib.py computes one per second).}
+\end{table}
+

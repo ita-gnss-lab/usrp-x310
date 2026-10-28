@@ -63,7 +63,6 @@ PROFILE_NAMES=("GPS L1 C/A + L5, 8-bit" "GPS L1 C/A + L2C, 16-bit")
 # beside GPS in its single run
 PROFILE_EXTRA_CONFS=("e1_8bits4msps_e5a_8bits20msps.conf" "")
 PROFILE_EXTRA_TAGS=("galileo" "")
-PROFILE_EXTRA_TITLES=("Galileo E1 + E5a" "")
 REPORT_DIR="$REPO_DIR/report/gnss_sdr"
 # pushed over SSH with ~/.ssh/id_ed25519 (registered on GitHub, no passphrase): origin is HTTPS, whose credential
 # helper (Git Credential Manager, gpg store) needs a terminal to unlock the token, which a systemd service lacks
@@ -72,17 +71,17 @@ REPORT_PATHS=(report/main.tex report/main.pdf report/gnss_sdr)
 
 # Process recording $1 (archive path) with gnss-sdr config $2, write its report figures/tables, and drop the bulky
 # per-stage dumps afterwards (tracking/telemetry dumps are ~1 GB per run; the figures keep what they showed).
-# Optional $3/$4 (tag, title): a further run of the same recording, to gnss_sdr_output/<name>_<tag>/ and
+# Optional $3 (tag): a further run of the same recording, to gnss_sdr_output/<name>_<tag>/ and
 # report/gnss_sdr/<name>/results_<tag>.tex, with gnss-sdr's own PVT as configured (no --l1-pvt).
 process_recording() {
-    local archive=$1 conf=$2 tag=${3:-} title=${4:-} name run log
+    local archive=$1 conf=$2 tag=${3:-} name run log
     local -a run_args=(--l1-pvt) tex_args=()
     name=$(basename "$archive" .sigmf)
     run=$name
     if [[ -n "$tag" ]]; then
         run=${name}_$tag
         run_args=(--out-suffix "_$tag")
-        tex_args=(--tag "$tag" --title "$title")
+        tex_args=(--tag "$tag")
     fi
     log="$STATE_DIR/gnss-sdr-$run.log"
     echo "processing $name with GNSS-SDR ($conf) ..."
@@ -213,8 +212,7 @@ archive="$NAS_DIR/$name.sigmf"
 if [[ -f "$archive" ]]; then
     process_recording "$archive" "${PROFILE_CONFS[count]}"
     if [[ -n "${PROFILE_EXTRA_CONFS[count]}" ]]; then
-        process_recording "$archive" "${PROFILE_EXTRA_CONFS[count]}" "${PROFILE_EXTRA_TAGS[count]}" \
-            "${PROFILE_EXTRA_TITLES[count]}"
+        process_recording "$archive" "${PROFILE_EXTRA_CONFS[count]}" "${PROFILE_EXTRA_TAGS[count]}"
     fi
     # 8. add it to the report and recompile (with its GNSS-SDR results if step 7 produced them)
     "$UV_BIN" run update_report.py "$archive" --recordings-dir "$NAS_DIR" --tex-path "$REPO_DIR/report/main.tex" \

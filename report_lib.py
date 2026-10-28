@@ -2,6 +2,10 @@
 "Temporary GNSS data" part (the last 15 recording days), refresh the temporary and permanent recording calendars, and
 compile the PDF.
 
+Each recording of a day is a \\subsection "RC<n>" (n = 0 for the day's first recording, 1 for the second) holding its
+metadata table, followed by one \\subsection "RC<n>-sol<k>" per PVT solution derived from it (see
+session_subsection_tex), each \\input-ing the GNSS-SDR results that gnss_sdr_out2tex.py wrote for that solution.
+
 Used by update_report.py (after every recording, from systemd/x310-record.sh), by gnss_sdr_out2tex.py
 (tex_escape) and by send_whatsapp_msg.py (load_sessions, compile_report_pdf for the 15-day WhatsApp message).
 """
@@ -17,7 +21,6 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-ORDINALS = ["First", "Second", "Third", "Fourth", "Fifth"]  # per-day record count never exceeds 2 in practice
 # the "Temporary GNSS data" part keeps only this many most recent recording days (days with at least one recording), so
 # the PDF stays under WhatsApp's ~18 MB document limit (~1 MB per day); older days stay in git
 KEPT_RECORDING_DAYS = 15
@@ -78,13 +81,6 @@ def load_sessions(out_dir):
     return sorted(sessions, key=lambda s: s["datetime"])
 
 
-def ordinal(n):
-    """1 -> 'First', 2 -> 'Second', ... falls back to '6th record' etc. past ORDINALS."""
-    if 1 <= n <= len(ORDINALS):
-        return ORDINALS[n - 1]
-    return f"{n}th"
-
-
 _TEX_SPECIAL = str.maketrans({
     "\\": r"\textbackslash{}", "&": r"\&", "%": r"\%", "$": r"\$", "#": r"\#",
     "_": r"\_", "{": r"\{", "}": r"\}", "~": r"\textasciitilde{}", "^": r"\textasciicircum{}",
@@ -96,10 +92,20 @@ def tex_escape(text):
     return str(text).translate(_TEX_SPECIAL)
 
 
+def result_files(results_dir):
+    """The GNSS-SDR result files gnss_sdr_out2tex.py wrote for one recording, one per PVT solution, in solution order:
+    the first run's results.tex (stages + GNSS-SDR's own PVT) and results_spp.tex (gnss_spp_lib.py's PVT of that
+    run), then the same pair of each further run, results_<tag>.tex and results_<tag>_spp.tex, e.g. Galileo."""
+    def order(f):
+        run = f.stem.removeprefix("results").removesuffix("_spp").lstrip("_")
+        return run != "", run, f.stem.endswith("_spp")
+    return sorted(results_dir.glob("results*.tex"), key=order)
+
+
 def session_subsection_tex(session, record_number, tex_dir=Path("report")):
-    """Build one '\\subsection{...}' + metadata table for a single recording session, followed by its GNSS-SDR
-    results (\\input of gnss_sdr/<name>/results.tex, written by gnss_sdr_out2tex.py after the recording was
-    processed, then of any results_<tag>.tex of further runs, e.g. results_galileo.tex) when tex_dir has them."""
+    """Build one recording's '\\subsection{RC<n>}' (n = record_number - 1) with its metadata table, followed by one
+    '\\subsection{RC<n>-sol<k>}' per PVT solution with its GNSS-SDR results (result_files, written by
+    gnss_sdr_out2tex.py after the recording was processed) when tex_dir has them."""
     g0 = session["channels"][0][1]["global"]
     cap0 = session["channels"][0][1]["captures"][0]
     start_str = session["datetime"].strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -127,11 +133,17 @@ def session_subsection_tex(session, record_number, tex_dir=Path("report")):
     span = f"\\multicolumn{{{n_channels}}}{{>{{\\centering\\arraybackslash}}p{{7cm}}|}}"
     col_spec = "|l|" + "l|" * n_channels  # vertical lines between every column
 
+    def merged(cells):
+        """A per-channel row's cells, as one centered cell across the channel columns when every channel has the
+        same value (e.g. both channels at 2 MS/s)."""
+        values = cells.split(" & ")
+        return f"{span}{{{values[0]}}}" if len(set(values)) == 1 and n_channels > 1 else cells
+
     rows = [
         f"Start time & {span}{{{start_str}}} \\\\",
         f"Frequency & {freq_row} \\\\",
-        f"Duration & {duration_row} \\\\",
-        f"Sample rate & {rate_row} \\\\",
+        f"Duration & {merged(duration_row)} \\\\",
+        f"Sample rate & {merged(rate_row)} \\\\",
         f"Sample type & {span}{{{sample_type}}} \\\\",
         f"Gain & {gain_row} \\\\",
         f"Antenna & {antenna_row} \\\\",
@@ -151,7 +163,7 @@ def session_subsection_tex(session, record_number, tex_dir=Path("report")):
         rows.append(f"GNSS-SDR configuration & {span}{{{confs}}} \\\\")
 
     lines = [
-        f"\\subsection{{{ordinal(record_number)} record}}",
+        f"\\subsection{{{record_label(record_number)}}}",
         r"\begin{table}[H]",
         r"  \centering",
         f"  \\begin{{tabular}}{{{col_spec}}}",
@@ -168,14 +180,26 @@ def session_subsection_tex(session, record_number, tex_dir=Path("report")):
         f"captured starting {cap0['core:datetime']}.}}",
         r"\end{table}",
     ]
-    results_dir = tex_dir / "gnss_sdr" / session["name"]
-    # the first run's results.tex sorts before results_<tag>.tex
-    results = sorted(results_dir.glob("results*.tex"), key=lambda f: (f.name != "results.tex", f.name))
-    if results:
-        lines += [""] + [f"\\input{{{f.relative_to(tex_dir).as_posix()}}}" for f in results]
-    else:
+    results = result_files(tex_dir / "gnss_sdr" / session["name"])
+    if not results:
         lines += ["", r"\textit{GNSS-SDR processing of this recording is not available.}"]
+    label = record_label(record_number)
+    for k, f in enumerate(results):
+        lines += ["", f"\\subsection{{{label}-sol{k}}}"]
+        if f.stem.endswith("_spp"):
+            # results_spp.tex holds only its PVT: every other stage is that of the run's GNSS-SDR solution, just before
+            lines.append(f"Computed by \\texttt{{gnss\\_spp\\_lib.py}} from the same GNSS-SDR run as {label}-sol{k - 1}, "
+                         f"whose receiver stages (signal source to observables) are shown there; only the position "
+                         f"solution differs.")
+        elif f.name != "results.tex":
+            lines.append(f"A further GNSS-SDR run of the same recording; its signal source is shown in {label}-sol0.")
+        lines.append(f"\\input{{{f.relative_to(tex_dir).as_posix()}}}")
     return "\n".join(lines)
+
+
+def record_label(record_number):
+    """The day's 1st recording -> 'RC0', the 2nd -> 'RC1', ..."""
+    return f"RC{record_number - 1}"
 
 
 # with -file-line-error, errors are logged as "./main.tex:185: <message>" instead of "! <message>"
@@ -244,7 +268,7 @@ def _day_ordinal(session, all_sessions):
 def append_to_report(sessions, tex_path, all_sessions):
     """Append one \\section per day (each holding a \\subsection per recording that
     day) to tex_path's "Temporary GNSS data" \\part, just before PERMANENT_PART_MARKER. all_sessions (every session
-    on disk, not just the ones being appended) is what makes the First/Second/... ordinal
+    on disk, not just the ones being appended) is what makes the RC0/RC1/... numbering
     correct across several update_report.py runs on the same day.
 
     New sessions always arrive in non-decreasing date order (sessions is sorted by
@@ -283,6 +307,39 @@ def append_to_report(sessions, tex_path, all_sessions):
 
 
 _DAY_SECTION_RE = re.compile(r"^\\section\{Records on (\d{2}/\d{2}/\d{4})\}$", re.MULTILINE)
+
+
+# a recording's block in the "Temporary GNSS data" part starts at its \subsection{RC<n>} (or, before the RC<n>
+# naming, \subsection{First record}, ...) and runs up to the next recording, day section or the permanent part
+_RECORD_HEADING_RE = re.compile(r"^\\subsection\{(?:RC\d+|\w+ record)\}$", re.MULTILINE)
+_RECORD_NAME_RE = re.compile(r"Metadata for recording \\texttt\{([^}]+)\}")
+
+
+def rebuild_recordings(tex_path, all_sessions):
+    """Rebuild, in place, the block of every recording already in tex_path's "Temporary GNSS data" part from its
+    metadata and current GNSS-SDR result files (session_subsection_tex), e.g. after a change of the block's layout or
+    of gnss_sdr_out2tex.py's outputs. Recordings are not added or removed. Returns the rebuilt recordings' names."""
+    text = tex_path.read_text()
+    temporary_end = text.find(PERMANENT_PART_MARKER)
+    temporary_end = temporary_end if temporary_end >= 0 else len(text)
+    by_name = {s["name"]: s for s in all_sessions}
+    heads = list(_RECORD_HEADING_RE.finditer(text, 0, temporary_end))
+    rebuilt = []
+    for head in reversed(heads):  # from the end, so the earlier blocks' offsets stay valid
+        nxt = [m.start() for m in (_RECORD_HEADING_RE.search(text, head.end(), temporary_end),
+                                   _DAY_SECTION_RE.search(text, head.end(), temporary_end)) if m]
+        end = min(nxt, default=temporary_end)
+        name = _RECORD_NAME_RE.search(text, head.end(), end)
+        session = by_name.get(name.group(1).replace(r"\_", "_")) if name else None
+        if session is None:
+            print(f"warning: {head.group(0)} at offset {head.start()}: recording not found, left as it is")
+            continue
+        block = session_subsection_tex(session, _day_ordinal(session, all_sessions), tex_path.parent)
+        text = text[:head.start()] + block + "\n\n" + text[end:]
+        rebuilt.append(session["name"])
+    tex_path.write_text(text)
+    print(f"rebuilt {len(rebuilt)} recording(s) in {tex_path}")
+    return rebuilt[::-1]
 
 
 def prune_old_days(tex_path, keep_days=KEPT_RECORDING_DAYS):

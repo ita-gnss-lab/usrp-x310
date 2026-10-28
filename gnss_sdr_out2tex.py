@@ -1,25 +1,33 @@
 """Turn one recording's GNSS-SDR run (run_gnss_sdr.sh --report) into figures and tables for report/main.tex.
 
-One block of evidence per receiver stage, in the order of the report's "Validating the recordings with GNSS-SDR"
-section, written to <out>/results.tex (\\input under the recording's metadata table) plus JPEG figures:
+One block of evidence per receiver stage, in the order of the report's "GNSS-SDR outputs" section, written to
+<out>/results.tex (\\input under the report's RCx-sol0 subsection of the recording) plus JPEG figures:
   1. Signal source        PSD + I/Q histogram per channel (from the raw recording); table of sample statistics
   2. Signal conditioner   table: recorded format/rate -> what gnss-sdr processes (format, rate, upsampling)
   3. Acquisition          delay-Doppler map of the strongest detection per band; table of attempts/detections
   4. Tracking             C/N0 and Doppler vs time per satellite; prompt I/Q scatter; table per satellite
   5. Telemetry decoder    timeline of valid navigation-message time; table: messages, ephemeris, first TOW
   6. Observables          availability per satellite; P_band - P_L1 vs time; table of its mean/std/drift
-  7. PVT                  ENU scatter + time series about the surveyed antenna, skyplot; table of position errors
+  7. PVT                  ENU scatter + time series about the surveyed antenna; table of position errors
+The PVT stage of results.tex holds only GNSS-SDR's own solution. When gnss_spp_lib.py also solves the run (a GPS
+L1 C/A + L5 or L2C run), its ionosphere-free solution goes to <out>/results_spp.tex: a PVT block alone (with the sky
+plot), \\input under the report's RCx-sol1 subsection, since every other stage is the run's, already in RCx-sol0.
 Every element is optional: a missing GNSS-SDR output becomes a "not produced" line instead of a LaTeX error, so
 the report always compiles and shows how far the receiver got.
 
 A second run of the same recording with another configuration (e.g. Galileo E1 + E5a next to the GPS L1/L5 run) is
-written with --tag: its figures are prefixed <tag>_, its block goes to results_<tag>.tex, every stage heading gets
---title appended, and the signal-source stage (the same raw recording as the first run) is skipped.
+written with --tag: its figures are prefixed <tag>_, its block goes to results_<tag>.tex, and the signal-source stage
+(the same raw recording as the first run) is skipped.
+
+--pvt-only redoes only the PVT stage of an existing results(_<tag>).tex, from the dumps a processed run keeps
+(pvt.mat, observables.mat, the decoded ephemeris), e.g. after a change of how the PVT solutions are reported.
 
 Examples:
   uv run gnss_sdr_out2tex.py gnss_sdr_output/x310_20261021T193000Z --recording recordings/x310_20261021T193000Z.sigmf
   uv run gnss_sdr_out2tex.py gnss_sdr_output/x310_20261022T190000Z_galileo --recording \\
-      recordings/x310_20261022T190000Z.sigmf --tag galileo --title "Galileo E1 + E5a"
+      recordings/x310_20261022T190000Z.sigmf --tag galileo
+  uv run gnss_sdr_out2tex.py gnss_sdr_output/x310_20261022T190000Z --recording recordings/x310_20261022T190000Z.sigmf \\
+      --pvt-only
 """
 
 import argparse
@@ -67,7 +75,8 @@ def parse_args():
                    help="directory main.tex is compiled in; figure paths in results.tex are relative to it")
     p.add_argument("--tag", default="", help="second run of the same recording: prefix of its figures and "
                    "results_<tag>.tex; the signal-source stage is skipped (default: none, the recording's first run)")
-    p.add_argument("--title", default="", help="appended to every stage heading of this run, e.g. 'Galileo E1 + E5a'")
+    p.add_argument("--pvt-only", action="store_true",
+                   help="redo only the PVT stage of the existing results(_<tag>).tex (and results_spp.tex)")
     return p.parse_args()
 
 
@@ -129,14 +138,13 @@ def savefig(fig, out, name, tex):
 class Tex:
     """Collects results.tex: one subsubsection per stage, with its figures and tables."""
 
-    def __init__(self, root, name, tag="", title=""):
-        self.root, self.name, self.tag, self.title, self.lines = root, name, tag, title, []
+    def __init__(self, root, name, tag=""):
+        self.root, self.name, self.tag, self.lines = root, name, tag, []
 
     def para(self, title, text=""):
-        """One receiver stage: a \\subsubsection under the recording's \\subsection (title without its final dot,
-        plus this run's --title, e.g. 'Acquisition (Galileo E1 + E5a)')."""
-        heading = title.rstrip(".") + (f" ({self.title})" if self.title else "")
-        self.lines += [f"\\subsubsection{{{heading}}}", text, ""]
+        """One receiver stage: a \\subsubsection under the report's RCx-solN \\subsection (title without its final
+        dot)."""
+        self.lines += [f"\\subsubsection{{{title.rstrip('.')}}}", text, ""]
 
     def text(self, text):
         self.lines += [text, ""]
@@ -652,10 +660,10 @@ def gnss_sdr_pvt_label(values, bands):
     return "gnss-sdr, " + " + ".join(BAND_LABEL[s] for s in used) + (", iono-free" if is_iono_free else "")
 
 
-def stage_pvt(tex, out, run_dir, bands, obs, values):
-    tex.para("PVT.", "Position from the pseudoranges and the decoded ephemeris, compared with the surveyed antenna "
-             f"position ({ANTENNA_LLH[0]}$^\\circ$, {ANTENNA_LLH[1]}$^\\circ$, {ANTENNA_LLH[2]}~m).")
-    sols = []
+def pvt_solutions(run_dir, bands, obs, values):
+    """GNSS-SDR's own (RTKLIB) solution and, for a GPS L1 C/A + L5 (or L2C) run, gnss_spp_lib.py's ionosphere-free
+    one, each as (label, ENU errors, epoch times) or None; plus gnss_spp_lib.py's epochs (for the sky plot)."""
+    gnss_sdr, spp, spp_epochs = None, None, []
     pvt = run_dir / "pvt.mat"
     if pvt.exists():
         d = load_mat(pvt)
@@ -665,8 +673,8 @@ def stage_pvt(tex, out, run_dir, bands, obs, values):
             from gnss_spp_lib import enu_matrix, llh_to_ecef
             ref, r = llh_to_ecef(*ANTENNA_LLH), enu_matrix(ANTENNA_LLH[0], ANTENNA_LLH[1])
             enu = np.array([r @ (llh_to_ecef(a, b, c) - ref) for a, b, c in zip(lat[ok], lon[ok], h[ok])]).reshape(-1, 3)
-            sols.append((gnss_sdr_pvt_label(values, bands), enu, d.get("RX_time", np.arange(ok.size))[ok] if ok.any() else []))
-    spp_epochs = {}
+            gnss_sdr = (gnss_sdr_pvt_label(values, bands), enu,
+                        d.get("RX_time", np.arange(ok.size))[ok] if ok.any() else [])
     eph_path = run_dir / "gps_ephemeris.xml"
     run_signals = [b[0] for b in bands]
     # gnss_spp_lib.py is GPS-only: a GPS L1 C/A + L5 (or L2C) run gets its iono-free solution too
@@ -674,73 +682,97 @@ def stage_pvt(tex, out, run_dir, bands, obs, values):
     if obs is not None and eph_path.exists() and second:
         eph = load_lnav_ephemeris(eph_path)
         chan_bands = [band_of_channel(bands, ch) for ch in range(sum(b[2] for b in bands))]
-        ep = solve(obs, chan_bands, eph, second_band=second)
-        spp_epochs[second] = ep
-        sols.append((f"gnss\\_spp\\_lib.py, L1 C/A + {BAND_LABEL[second]}, iono-free", enu_errors(ep, ANTENNA_LLH),
-                     np.array([e["t"] for e in ep])))
-    if not sols:
-        tex.missing("PVT solutions")
-        return
-    rx = obs["RX_time"].max(axis=0) if obs is not None else np.zeros(0)
-    t0 = rx[rx > 0].min() if np.any(rx > 0) else min((s[2][0] for s in sols if len(s[2])), default=0)
-    n_total = int(np.ptp(rx[rx > 0])) if np.any(rx > 0) else 0
-    fig = plt.figure(figsize=(FIG_W, 1.0 + 1.3 * len(sols)))
-    gs = fig.add_gridspec(len(sols), 2, width_ratios=[1, 1.7])
-    ax_h = fig.add_subplot(gs[:, 0])
-    lims = []
-    for i, (label, enu, t) in enumerate(sols):
-        ax = fig.add_subplot(gs[i, 1])
-        if len(enu):
-            ax_h.plot(enu[:, 0], enu[:, 1], ".", ms=1.5, alpha=0.5, color=f"C{i}", label=label)
-            lims.append(np.percentile(np.abs(enu[:, :2]), 95))
-            tt = np.asarray(t, dtype=float) - t0
-            for k, comp in enumerate("ENU"):
-                ax.plot(tt, enu[:, k], lw=0.6, color=["C0", "C1", "C2"][k], label=comp)
-        ax.set(ylabel="error [m]", title=label, xlim=(0, n_total or None))
-        ax.title.set_fontsize(7)
-        ax.legend(fontsize=5, ncol=3, loc="upper right")
-        if i == len(sols) - 1:
-            ax.set_xlabel("time [s]")
+        spp_epochs = solve(obs, chan_bands, eph, second_band=second)
+        spp = (f"gnss\\_spp\\_lib.py, L1 C/A + {BAND_LABEL[second]}, iono-free", enu_errors(spp_epochs, ANTENNA_LLH),
+               np.array([e["t"] for e in spp_epochs]))
+    return gnss_sdr, spp, spp_epochs
+
+
+def pvt_figure(label, enu, t, t0, n_total):
+    """Horizontal error scatter about the surveyed antenna, beside the E/N/U errors versus time."""
+    label = label.replace("\\_", "_")  # the label is LaTeX for the report's tables, plain text in the figure
+    fig = plt.figure(figsize=(FIG_W, 2.3))
+    gs = fig.add_gridspec(1, 2, width_ratios=[1, 1.7])
+    ax_h, ax = fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1])
+    lim = 5
+    if len(enu):
+        ax_h.plot(enu[:, 0], enu[:, 1], ".", ms=1.5, alpha=0.5, color="C0", label=label)
+        lim = max(5, 1.2 * np.percentile(np.abs(enu[:, :2]), 95))
+        tt = np.asarray(t, dtype=float) - t0
+        for k, comp in enumerate("ENU"):
+            ax.plot(tt, enu[:, k], lw=0.6, color=["C0", "C1", "C2"][k], label=comp)
+    ax.set(xlabel="time [s]", ylabel="error [m]", title=label, xlim=(0, n_total or None))
+    ax.title.set_fontsize(7)
+    ax.legend(fontsize=5, ncol=3, loc="upper right")
     ax_h.plot(0, 0, "k+", ms=8, mew=1.5, label="surveyed antenna")
-    lim = max(5, 1.2 * max(lims, default=5))
     ax_h.set(xlabel="east [m]", ylabel="north [m]", xlim=(-lim, lim), ylim=(-lim, lim), aspect="equal",
              title="horizontal position error")
     ax_h.legend(fontsize=5)
     fig.tight_layout()
-    caption = ("PVT: position error with respect to the surveyed antenna position. gnss-sdr: GNSS-SDR's own RTKLIB "
-               "solution" + ("" if values.get("PVT.iono_model") == "Iono-Free-LC" else
-                             " (single frequency, broadcast ionosphere model)") + ".")
-    if spp_epochs:
-        caption += (" gnss\\_spp\\_lib.py: computed from gnss-sdr's observables and decoded GPS ephemeris, removing the "
-                    "ionospheric delay with the second band (pseudoranges carrier-smoothed over 100~s).")
-    tex.figure(savefig(fig, out, "pvt", tex), caption)
-    sky = next((ep for ep in spp_epochs.values() if ep), None)
-    if sky:
-        fig = plt.figure(figsize=(FIG_W / 2.2, FIG_W / 2.2))
-        ax = fig.add_subplot(projection="polar")
-        ax.set_theta_zero_location("N")
-        ax.set_theta_direction(-1)
-        tracks = {}
-        for e in sky:
-            for prn, el, az in zip(e["prns"], e["elev"], e["az"]):
-                tracks.setdefault(prn, []).append((az, 90 - np.degrees(el)))
-        for prn, pts in sorted(tracks.items()):
-            a = np.array(pts)
-            # the track over the recording (a few degrees in 5 min) and a large dot at the satellite's last position
-            line, = ax.plot(a[:, 0], a[:, 1], lw=3)
-            ax.plot(a[-1, 0], a[-1, 1], "o", ms=11, color=line.get_color(), mec="black", mew=0.6)
-            ax.annotate(str(prn), (a[-1, 0], a[-1, 1]), xytext=(7, 4), textcoords="offset points",
-                        fontsize=9, fontweight="bold")
-        ax.set_rlim(0, 90)
-        ax.set_rticks([0, 30, 60, 90])
-        ax.set_yticklabels(["90°", "60°", "30°", "0°"], fontsize=5)
-        tex.figure(savefig(fig, out, "skyplot", tex), "PVT: sky plot of the GPS satellites in the gnss\\_spp\\_lib.py dual-frequency "
-                   "solution (azimuth, elevation) during the recording.", width=0.45)
-    tex.table_t(["Solution", "Solutions", "Run with fix [\\%]", "Mean E / N / U [m]", "Std E / N / U [m]", "RMS 2-D [m]",
-               "RMS 3-D [m]", "95\\% horiz. [m]"], [stats_row(l, e, t, n_total) for l, e, t in sols],
-              "PVT: position error statistics with respect to the surveyed antenna (mean = accuracy, std = "
-              "precision; \\% of the run's seconds with a position; gnss-sdr outputs several solutions per second, "
-              "gnss\\_spp\\_lib.py computes one per second).")
+    return fig
+
+
+def skyplot_figure(epochs):
+    fig = plt.figure(figsize=(FIG_W / 2.2, FIG_W / 2.2))
+    ax = fig.add_subplot(projection="polar")
+    ax.set_theta_zero_location("N")
+    ax.set_theta_direction(-1)
+    tracks = {}
+    for e in epochs:
+        for prn, el, az in zip(e["prns"], e["elev"], e["az"]):
+            tracks.setdefault(prn, []).append((az, 90 - np.degrees(el)))
+    for prn, pts in sorted(tracks.items()):
+        a = np.array(pts)
+        # the track over the recording (a few degrees in 5 min) and a large dot at the satellite's last position
+        line, = ax.plot(a[:, 0], a[:, 1], lw=3)
+        ax.plot(a[-1, 0], a[-1, 1], "o", ms=11, color=line.get_color(), mec="black", mew=0.6)
+        ax.annotate(str(prn), (a[-1, 0], a[-1, 1]), xytext=(7, 4), textcoords="offset points",
+                    fontsize=9, fontweight="bold")
+    ax.set_rlim(0, 90)
+    ax.set_rticks([0, 30, 60, 90])
+    ax.set_yticklabels(["90°", "60°", "30°", "0°"], fontsize=5)
+    return fig
+
+
+PVT_STATS_HEADER = ["Solution", "Solutions", "Run with fix [\\%]", "Mean E / N / U [m]", "Std E / N / U [m]",
+                    "RMS 2-D [m]", "RMS 3-D [m]", "95\\% horiz. [m]"]
+PVT_STATS_CAPTION = ("PVT: position error statistics with respect to the surveyed antenna (mean = accuracy, std = "
+                     "precision; \\% of the run's seconds with a position; {rate}).")
+
+
+def stage_pvt(tex, spp_tex, out, run_dir, bands, obs, values):
+    """PVT of GNSS-SDR's own solution into tex (results.tex) and, when gnss_spp_lib.py solves the run, of its
+    solution into spp_tex (results_spp.tex), each a PVT block of its own."""
+    intro = ("Position from the pseudoranges and the decoded ephemeris, compared with the surveyed antenna "
+             f"position ({ANTENNA_LLH[0]}$^\\circ$, {ANTENNA_LLH[1]}$^\\circ$, {ANTENNA_LLH[2]}~m).")
+    gnss_sdr, spp, spp_epochs = pvt_solutions(run_dir, bands, obs, values)
+    rx = obs["RX_time"].max(axis=0) if obs is not None else np.zeros(0)
+    t0 = rx[rx > 0].min() if np.any(rx > 0) else min((s[2][0] for s in (gnss_sdr, spp) if s and len(s[2])), default=0)
+    n_total = int(np.ptp(rx[rx > 0])) if np.any(rx > 0) else 0
+
+    tex.para("PVT.", intro)
+    if gnss_sdr:
+        caption = ("PVT: position error of GNSS-SDR's own RTKLIB solution with respect to the surveyed antenna position"
+                   + ("" if values.get("PVT.iono_model") == "Iono-Free-LC" else
+                      " (single frequency, broadcast ionosphere model)") + ".")
+        tex.figure(savefig(pvt_figure(*gnss_sdr, t0, n_total), out, "pvt", tex), caption)
+        tex.table_t(PVT_STATS_HEADER, [stats_row(*gnss_sdr, n_total)],
+                    PVT_STATS_CAPTION.format(rate="GNSS-SDR outputs several solutions per second"))
+    else:
+        tex.missing("GNSS-SDR PVT solution")
+
+    if spp:
+        spp_tex.para("PVT.", intro)
+        spp_tex.figure(savefig(pvt_figure(*spp, t0, n_total), out, "pvt_spp", spp_tex),
+                       "PVT: position error of the gnss\\_spp\\_lib.py solution with respect to the surveyed antenna "
+                       "position: computed from GNSS-SDR's observables and decoded GPS ephemeris, removing the "
+                       "ionospheric delay with the second band (pseudoranges carrier-smoothed over 100~s).")
+        if spp_epochs:
+            spp_tex.figure(savefig(skyplot_figure(spp_epochs), out, "skyplot", spp_tex),
+                           "PVT: sky plot of the GPS satellites in the gnss\\_spp\\_lib.py dual-frequency solution "
+                           "(azimuth, elevation) during the recording.", width=0.45)
+        spp_tex.table_t(PVT_STATS_HEADER, [stats_row(*spp, n_total)],
+                        PVT_STATS_CAPTION.format(rate="gnss\\_spp\\_lib.py computes one per second"))
 
 
 # ------------------------------------------------------------------------------------------------------- main
@@ -750,8 +782,9 @@ def main():
     name = archive.name.removesuffix(".sigmf")
     out = args.out or args.tex_root / "gnss_sdr" / name
     out.mkdir(parents=True, exist_ok=True)
-    tex = Tex(args.tex_root, name, args.tag, args.title)
+    tex, spp_tex = Tex(args.tex_root, name, args.tag), Tex(args.tex_root, name, args.tag)
     results = out / (f"results_{args.tag}.tex" if args.tag else "results.tex")
+    results_spp = results.with_name(results.stem + "_spp.tex")
     metas = read_archive_meta(archive)
     try:
         conf_name, values = conf_values(run_dir)
@@ -760,20 +793,34 @@ def main():
         tex.write(results)
         return
     bands = bands_of(values)
-    # the recording's metadata table in main.tex shows it (report_lib.session_subsection_tex reads this file)
-    conf_name_file = CONF_NAME_FILE.replace(".txt", f"_{args.tag}.txt") if args.tag else CONF_NAME_FILE
-    (out / conf_name_file).write_text(conf_name + "\n")
-    fs = float(values.get("GNSS-SDR.internal_fs_sps", 0))
-    if not args.tag:  # a --tag run reads the same raw recording as the first run, already shown there
-        stage_source(tex, out, archive, metas, bands)
-    stage_conditioner(tex, values, metas, bands)
-    stage_acquisition(tex, out, run_dir, bands, fs)
-    stage_tracking(tex, out, run_dir, bands, fs)
-    stage_telemetry(tex, out, run_dir, bands, fs)
-    obs = stage_observables(tex, out, run_dir, bands)
-    stage_pvt(tex, out, run_dir, bands, obs, values)
+    if args.pvt_only:
+        text = results.read_text()
+        # every stage before PVT as it is; headings of older runs carried the run's title, e.g.
+        # "Acquisition (Galileo E1 + E5a)", which the report's RCx-solN subsection now gives
+        text = re.sub(r"^(\\subsubsection\{[^}]*?) \([^()]*\)\}$", r"\1}", text, flags=re.MULTILINE)
+        tex.lines = [text[:text.index("\\subsubsection{PVT")].rstrip("\n"), ""]
+        obs_path = run_dir / "observables.mat"
+        obs = load_observables(obs_path, sum(b[2] for b in bands)) if obs_path.exists() else None
+    else:
+        # the recording's metadata table in main.tex shows it (report_lib.session_subsection_tex reads this file)
+        conf_name_file = CONF_NAME_FILE.replace(".txt", f"_{args.tag}.txt") if args.tag else CONF_NAME_FILE
+        (out / conf_name_file).write_text(conf_name + "\n")
+        fs = float(values.get("GNSS-SDR.internal_fs_sps", 0))
+        if not args.tag:  # a --tag run reads the same raw recording as the first run, already shown there
+            stage_source(tex, out, archive, metas, bands)
+        stage_conditioner(tex, values, metas, bands)
+        stage_acquisition(tex, out, run_dir, bands, fs)
+        stage_tracking(tex, out, run_dir, bands, fs)
+        stage_telemetry(tex, out, run_dir, bands, fs)
+        obs = stage_observables(tex, out, run_dir, bands)
+    stage_pvt(tex, spp_tex, out, run_dir, bands, obs, values)
     tex.write(results)
-    print(f"wrote {results} and {len(list(out.glob(f'{args.tag}_*.{FIG_FORMAT}' if args.tag else f'*.{FIG_FORMAT}')))} figures")
+    if spp_tex.lines:
+        spp_tex.write(results_spp)
+    else:
+        results_spp.unlink(missing_ok=True)
+    print(f"wrote {results}" + (f", {results_spp}" if spp_tex.lines else "")
+          + f" and {len(list(out.glob(f'{args.tag}_*.{FIG_FORMAT}' if args.tag else f'*.{FIG_FORMAT}')))} figures")
 
 
 if __name__ == "__main__":

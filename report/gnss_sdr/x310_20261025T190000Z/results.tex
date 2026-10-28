@@ -196,32 +196,26 @@ Position from the pseudoranges and the decoded ephemeris, compared with the surv
 \begin{figure}[H]
   \centering
   \includegraphics[width=1.0\linewidth]{gnss_sdr/x310_20261025T190000Z/pvt.jpg}
-  \caption{PVT: position error with respect to the surveyed antenna position. gnss-sdr: GNSS-SDR's own RTKLIB solution (single frequency, broadcast ionosphere model). gnss\_spp\_lib.py: computed from gnss-sdr's observables and decoded GPS ephemeris, removing the ionospheric delay with the second band (pseudoranges carrier-smoothed over 100~s).}
-\end{figure}
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.45\linewidth]{gnss_sdr/x310_20261025T190000Z/skyplot.jpg}
-  \caption{PVT: sky plot of the GPS satellites in the gnss\_spp\_lib.py dual-frequency solution (azimuth, elevation) during the recording.}
+  \caption{PVT: position error of GNSS-SDR's own RTKLIB solution with respect to the surveyed antenna position (single frequency, broadcast ionosphere model).}
 \end{figure}
 
 \begin{table}[H]
   \centering
   \footnotesize
   \resizebox{\ifdim\width>\linewidth\linewidth\else\width\fi}{!}{%
-  \begin{tabular}{l>{\centering\arraybackslash}p{4.2cm}>{\centering\arraybackslash}p{4.2cm}}
+  \begin{tabular}{l>{\centering\arraybackslash}p{4.2cm}}
     \hline
-    \textbf{Solution} & \textbf{gnss-sdr, L1 C/A} & \textbf{gnss\_spp\_lib.py, L1 C/A + L5, iono-free} \\
+    \textbf{Solution} & \textbf{gnss-sdr, L1 C/A} \\
     \hline
-    Solutions & 11859 & 247 \\
-    Run with fix [\%] & 84 & 89 \\
-    Mean E / N / U [m] & 3.5 / -2.7 / 4.2 & -8.3 / 10.5 / -0.1 \\
-    Std E / N / U [m] & 3.3 / 2.9 / 4.8 & 6.5 / 9.3 / 12.6 \\
-    RMS 2-D [m] & 6.2 & 17.6 \\
-    RMS 3-D [m] & 8.9 & 21.6 \\
-    95\% horiz. [m] & 10.1 & 29.1 \\
+    Solutions & 11859 \\
+    Run with fix [\%] & 84 \\
+    Mean E / N / U [m] & 3.5 / -2.7 / 4.2 \\
+    Std E / N / U [m] & 3.3 / 2.9 / 4.8 \\
+    RMS 2-D [m] & 6.2 \\
+    RMS 3-D [m] & 8.9 \\
+    95\% horiz. [m] & 10.1 \\
     \hline
   \end{tabular}}
-  \caption{PVT: position error statistics with respect to the surveyed antenna (mean = accuracy, std = precision; \% of the run's seconds with a position; gnss-sdr outputs several solutions per second, gnss\_spp\_lib.py computes one per second).}
+  \caption{PVT: position error statistics with respect to the surveyed antenna (mean = accuracy, std = precision; \% of the run's seconds with a position; GNSS-SDR outputs several solutions per second).}
 \end{table}
 
