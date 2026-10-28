@@ -22,6 +22,29 @@
 ]
 \input{default_glossary_entries.tex}
 
+% highlighted note box: \begin{note}...\end{note}, or \begin{note}[Title]...\end{note}
+\usepackage{tabularx}
+\usepackage{pdflscape}
+\usepackage{multirow}
+\usepackage[most]{tcolorbox}
+\newtcolorbox{note}[1][Note]{enhanced, breakable, colback=orange!8, colframe=orange!75!black, boxrule=0.6pt,
+  leftrule=3pt, arc=2pt, fonttitle=\bfseries, coltitle=orange!50!black, colbacktitle=orange!20,
+  title={#1}, attach title to upper={\ }}
+
+% \texttt may break a line after an underscore, so long file names (e.g., x310_..._ch0.sigmf-data) do not run
+% into the margin
+% (defined from \ttfamily: \let-copying the robust \texttt and calling it from the new one recurses forever)
+\newcommand{\ttbreakunderscore}{\textunderscore\allowbreak}
+\DeclareRobustCommand{\texttt}[1]{\ifmmode\mathtt{#1}\else{\ttfamily\let\_\ttbreakunderscore#1}\fi}
+
+% code-like block for shell commands and their output: \begin{codeblock}...\end{codeblock}; it grows into the
+% margins so that long output lines (e.g., tar -tvf) fit without wrapping
+\newtcblisting{codeblock}{listing only, enhanced, breakable, colback=gray!8, colframe=gray!60, boxrule=0.5pt, arc=2pt,
+  left=4pt, right=4pt, top=2pt, bottom=2pt, grow to left by=1.3cm, grow to right by=1.3cm,
+  listing options={basicstyle=\fontsize{6}{7.2}\selectfont\ttfamily, columns=fullflexible, keepspaces=true,
+    aboveskip=0pt, belowskip=0pt,
+    breaklines=true, postbreak=\mbox{$\hookrightarrow$\space}}}
+
 \makeatletter
 \let\old@part\part
 \renewcommand{\part}{\clearpage\old@part}
@@ -50,40 +73,130 @@
 
 \tableofcontents
 
-\part{Data collection}
+\part{Methodology}
 \label{part:data-collection}
 
 This part describes how the data is collected: the recording methodology, which keeps only the recordings that contain ionospheric scintillation, and how each recording is checked with the GNSS-SDR software receiver.
 
-\section{Methodology}
+\section{Data collection routine}
 
 The recording is made automatically by a Linux service that follows these guidelines:
 \begin{itemize}
     \item Every day, the program starts within the time range [9PM, 11PM] (local time), i.e., the post-sunset hours in which equatorial plasma bubbles cause scintillation at low latitudes.
     \item It senses whether the USRP is detectable via \texttt{uhd\_find\_devices --args=``addr=192.168.10.2''}.
     \item If not found, it exits silently and senses again in intervals of 15 min.
-    \item Once found, two recordings are made, each with a duration of 5 minutes (300 s). The first recording happens right after the USRP is detected, and the second recording is made 30 min after the first one. After that, no more recordings are made for that day.
-    \item The two recordings of a day use different signal pairs:
-    \begin{itemize}
-        \item First recording: channel 0 (RX0) GPS L1 C/A (1575.42~MHz), 4~MS/s; channel 1 (RX1) GPS L5 (1176.45~MHz), 20~MS/s; both 25~dB of gain, signed 8-bit I/Q (2 bytes per complex sample);
-        \item Second recording: channel 0 (RX0) GPS L1 C/A (1575.42~MHz); channel 1 (RX1) GPS L2C (1227.60~MHz); both 4~MS/s, 25~dB of gain, signed 16-bit I/Q (4 bytes per complex sample).
-    \end{itemize}
-    % TODO: REMOVE SUCH RECORDINGS ONCE WE HAVE ENOUGH DATA WITH THE NEW CONFIG Records made before 17/10/2026 used 2~MS/s in both channels; records made before 22/10/2026 were all GPS L1/L5.
-    \item For each recording a SigMF archive file is created, with the interleaved I/Q samples + metadata, like number of channels (dual channel recording), frequencies, sampling rate, gain, sample type, etc. Each channel has its own configuration, so the metadata of each channel is reported separately.
-    \item Each recording is processed by the GNSS-SDR software receiver right after it is made, and the outputs of every receiver stage are added under the recording in Part~\ref{part:recordings} (see Section~\ref{sec:gnss-sdr}). Galileo E1 shares GPS L1's 1575.42~MHz and Galileo E5a GPS L5's 1176.45~MHz, so the recordings also hold Galileo: the first recording is processed twice (GPS L1 C/A + L5, then Galileo E1 + E5a), and the second once, with GPS L1 C/A, L2C and Galileo E1 together. % FIXME: maybe put this into one section?
-    \item Every recording is first \emph{temporary}: it is kept in the temporary directory of the laboratory's NAS during one 15-day cycle, and reported in Part~\ref{part:recordings}. From its correlator outputs, the scintillation indices are computed and the recording is classified into one of three scintillation severity classes (Part~\ref{part:scintillation}, Section~\ref{sec:scintillation-classes}).
-    \item Every 15 days, right after the periodic report is triggered, the following steps are performed:
+    \item Once found, two recordings are made, each with a duration of 5 minutes (300 s). The first recording (RC0) happens right after the USRP is detected, and the second recording (RC1 ) is made 30 min after the first one. After that, no more recordings are made for that day.
+    \item Every recording has two channels (ch0 and ch1), one per GNSS band. The two daily recordings, however, cover distinct band combinations and operate their own sampling rate, as shown in Table~\ref{tab:recording-profiles}. Every channel uses a gain of 25~dB.
+    \item RC0 and RC1 are saved as separated SigMF archives. See Section~\ref{sec:sigmf} for details.
+    \item Each recording is processed by the GNSS-SDR\footnote{\url{https://gnss-sdr.org}, v0.0.20.} software receiver right after it is made. The final PVT solutions obtained from each recording are listed in Table~\ref{tab:pvt-solutions}.
+    \item Before the GNSS-SDR processing, some preprocessing steps described in Section~\ref{sec:preprocessing} are performed.
+    \item The recorded data during the last 15 days are kept in NAS's temporary directory, while their respective receiver stage outputs (from acquisition to PVT) are appended to Part~\ref{part:temporary}. From the prompt correlator samples, the scintillation indices are also computed according to Section~\ref{part:scintillation}, and each recording is classified as either weak, moderate or strong scintillation severity.
+    \item This report is updated every day and automatically, with the daily recordings moved to the NAS storage and their GNSS-SDR outputs appended to Part~\ref{part:temporary}.
+    \item Every 15 days, right after the periodic report update is triggered, the following steps are performed:
     \begin{enumerate}
-        \item the recordings of the past 15 days classified with moderate or strong scintillation are moved to the permanent NAS storage, and reported in Part~\ref{part:permanent};
-        \item the recordings with no (or weak) scintillation are deleted;
-        \item Part~\ref{part:recordings} is overwritten with the recordings of the last 15 days;
         \item the report is sent via WhatsApp to the head of the Laboratory, Prof.\ Dr.\ Felix Antreich, together with a summary of the recorded metadata.
+        \item the recordings of the past 15 days classified with moderate or strong scintillation are moved to the permanent NAS storage, and only their respective scintillation indices are appended to Part~\ref{part:permanent};
+        \item the leftover recordings in NAS's temporary directory is deleted, and Part~\ref{part:temporary} is cleared so that the next 15 days of recordings can be appended to it.
     \end{enumerate}
 \end{itemize}
 
-\section{Validating the recordings with GNSS-SDR}\label{sec:gnss-sdr}
+\begin{table}[H]
+      \centering
+      \caption{Channel configuration of the two daily recordings. The $\rightarrow$ indicates the preprocessing steps made on the recorded data before the GNSS-SDR processing.}
+      \label{tab:recording-profiles}
+      \small\setlength{\tabcolsep}{4pt}
+      \begin{tabular}{|l|c|c|c|c|c|}
+        \hline
+        \textbf{Recording} & \textbf{Channel}\footnotemark & \textbf{Band} & \textbf{Freq. (MHz)} & \textbf{Rate (MS/s)} & \textbf{I/Q format} \\
+        \hline
+        First (RC0) & ch0 & L1 & 1575.42 & 4 $\rightarrow$ 20 & 16 $\rightarrow$ 8-bit \\
+        \cline{2-6}
+         & ch1 & L5 & 1176.45 & 20 & 16 $\rightarrow$ 8-bit \\
+        \hline
+        Second (RC1) & ch0 & L1 & 1575.42 & 4 & 16-bit \\
+        \cline{2-6}
+         & ch1 & L2 & 1227.60 & 4 & 16-bit \\
+        \hline
+      \end{tabular}
+    \end{table}
+\footnotetext{In the context of the TwinRX daughterboard, ch0 and ch1 are referred to as RX0 and RX1, respectively.}
 
-A recording is only useful if a GNSS receiver can use it: find the satellites in it, track their signals, decode their navigation messages, and compute a position. To show that, every recording is processed with GNSS-SDR\footnote{\url{https://gnss-sdr.org}, v0.0.20.}, an open-source software-defined GNSS receiver, and the output of each of its stages is added to the report of that recording (Part~\ref{part:recordings}). Figure~\ref{fig:gnss-sdr-chain} shows the data chain of GNSS-SDR. Each channel (one per satellite signal) runs its own acquisition, tracking and telemetry decoder; observables and PVT combine all of them.
+% landscape page (pdflscape also rotates it in the PDF viewer)
+\begin{landscape}
+\begin{table}[H]
+      \centering
+      \caption{Final PVT solutions of each daily recording.}
+      \label{tab:pvt-solutions}
+      \small
+      % Signals and Comments wrap: fixed width for Signals, Comments (X) takes the rest of the line;
+      % m columns (and X as m) center every cell vertically in its row
+      \renewcommand{\tabularxcolumn}[1]{m{#1}}
+      \begin{tabularx}{\linewidth}{|l|c|>{\raggedright\arraybackslash}m{3.2cm}|l|>{\raggedright\arraybackslash}X|}
+        \hline
+        \textbf{Recording} & \textbf{Solution} & \textbf{Signals} & \textbf{GNSS-SDR configuration file} & \textbf{Comments} \\
+        \hline
+        First (RC0) & sol0 & GPS L1 C/A (ch0) & \multirow{9}{*}{\texttt{l1ca8bits4msps\_l5\_8bits20msps.conf}} & RC0-ch1 (tuned to L5) is ignored\\
+        \cline{2-3}\cline{5-5}
+         & sol1 & GPS L1 C/A (ch0) + L5 (ch1) & & Because GNSS-SDR's dual-frequency solver was unstable with few L5-capable GPS satellites in view, this PVT was computed using \texttt{gnss\_spp\_lib.py} from the observables and decoded ephemeris of the GNSS-SDR run. L1 C/A is first upsampled from 4~MS/s to 20~MS/s before being processed by GNSS-SDR. See Section \ref{sec:upsampling} \\
+        \cline{2-5}
+         & sol2 & Galileo E1-B/C (ch0) + E5a (ch1) & \texttt{e1\_8bits4msps\_e5a\_8bits20msps.conf} & E1-B/C is first upsampled from 4~MS/s to 20~MS/s before being processed by GNSS-SDR. See Section \ref{sec:upsampling} \\
+        \hline
+        Second (RC1) & sol0 & GPS L1 C/A + Galileo E1-B/C (both from ch0) & \multirow{8}{*}{\texttt{l1ca16bits4msps\_l2c16bits4msps.conf}} & RC1-ch1 (tuned to L2) is ignored\\
+        \cline{2-3}\cline{5-5}
+         & sol1 & GPS L1 C/A (ch0) + L2C (ch1) & & Since GNSS-SDR\footnotemark{} has no PVT solution using L2C, it was computed by \texttt{gnss\_spp\_lib.py} from the observables and decoded ephemeris of the GNSS-SDR run. \\
+        \hline
+      \end{tabularx}
+\end{table}
+\footnotetext{As of GNSS-SDR v0.0.20, the version used in this work.}
+\end{landscape}
+
+\begin{note}
+For the sake of conciseness, the PVT solutions will be referred to as ``RC0-sol0'', ``RC0-sol1'', ``RC0-sol2'', ``RC1-sol0'' and ``RC1-sol1'' hereafter.
+\end{note}
+
+\section{SigMF format}\label{sec:sigmf}
+
+The recordings are stored in the Signal Metadata Format (SigMF)\footnote{\url{https://sigmf.org}.}, an open standard for sharing recorded I/Q samples together with the information needed to interpret them. A SigMF recording consists of two files: a binary \texttt{.sigmf-data} file holding only the raw samples, and a JSON \texttt{.sigmf-meta} file describing them. The metadata is split into a \texttt{global} object (sample format, sampling rate, hardware, checksum, etc.), a \texttt{captures} list (center frequency and start time of each contiguous block of samples), and an \texttt{annotations} list (optional labels over sample ranges). Related recordings, such as the channels of one multichannel acquisition, are grouped by a \texttt{.sigmf-collection} file, and all these files can be bundled into a single \texttt{.sigmf} archive, which is a plain \texttt{tar} file.
+
+Each dual-channel recording is therefore stored as one archive with one recording per channel. For example, the contents of the first recording of 26/10/2026 are listed below:
+
+\begin{codeblock}
+tar -tvf recordings/x310_20261026T190001Z.sigmf | numfmt --field=3 --to=iec-i --suffix=B
+
+-rw-r--r-- tapyu/tapyu    572B 2026-10-26 16:05 x310_20261026T190001Z/x310_20261026T190001Z.sigmf-collection
+-rw-r--r-- tapyu/tapyu  1.5KiB 2026-10-26 16:05 x310_20261026T190001Z/x310_20261026T190001Z_ch0.sigmf-meta
+-rw-r--r-- tapyu/tapyu  2.1KiB 2026-10-26 16:05 x310_20261026T190001Z/x310_20261026T190001Z_ch1.sigmf-meta
+-rw-r--r-- tapyu/tapyu  2.3GiB 2026-10-26 16:05 x310_20261026T190001Z/x310_20261026T190001Z_ch0.sigmf-data
+-rw-r--r-- tapyu/tapyu   12GiB 2026-10-26 16:05 x310_20261026T190001Z/x310_20261026T190001Z_ch1.sigmf-data
+\end{codeblock}
+
+The collection file ties the two channels together, and each channel has its own metadata and data files. The data file sizes follow from the 300-s duration and the channel configuration of Table~\ref{tab:recording-profiles}: channel 0 (L1) holds $4~\text{MS/s} \times 300~\text{s} \times 2~\text{bytes} = 2.4$~GB, and channel 1 (L5) holds $20~\text{MS/s} \times 300~\text{s} \times 2~\text{bytes} = 12$~GB.
+
+\section{Preprocessing steps}\label{sec:preprocessing}
+
+After the recording is made, the following preprocessing steps are performed before the GNSS-SDR processing:
+
+\subsection{Requantization from 16 to 8 bits}
+
+On the one hand, the OTW data format for USRP X310 is sc16, \textit{i.e.}, 16-bit signed integers for each I/Q component, totaling 32 bits (4 byte) per complex baseband sample. On the other hand, the UHD (USRP Hardware Driver) library determines the CPU data format, which is internally handled by the Python's \texttt{uhd} package. However, UHD 4.6 (the one used in the recording) also has no sc16 $\rightarrow$ sc8 converter on the host side. Therefore, it is manually done in \texttt{x310usrp\_record.py} for RC0 (see Table \ref{tab:recording-profiles}).
+
+The requantization is applied right after the USRP recording, so that the stored data file is kept as small as possible.
+
+\subsection{Upsampling for multi-rate channels}
+\label{sec:upsampling}
+
+When reading from a file, GNSS-SDR expects all channels to run at the same rate. \texttt{Multichannel\_File\_Signal\_Source} (in the GNSS-SDR's config file) ensures this by reading several raw I/Q files through a single block with one output stream per file. By using the terminal output shown in Section \ref{sec:sigmf} example, they are \texttt{x310\_20261026T190001Z\_ch0.sigmf-data} for ch0 and \texttt{x310\_20261026T190001Z\_ch1.sigmf-data} for ch1. On each call, that block delivers the same number of samples to every stream, so the two bands advance in lockstep\footnote{With one independent source per band, one band runs ahead of the other and its measurements are discarded.}.
+
+When the channels run at the same rate, this procedure is straightforward. However, the data source for RC0-sol1 and sol2 operate at different rates: 4~MS/s for ch0 and 20~MS/s for ch1. Therefore, \texttt{upsample\_iq.py} upsamples via zero-order hold the file \texttt{x310\_20261026T190001Z\_ch0.sigmf-data} to 20~MS/s, generating a new temporary file. Then, the upsampled version of ch0 and \texttt{x310\_20261026T190001Z\_ch1.sigmf-data} is used as input to GNSS-SDR. The upsampling factor is 5, so every sample of ch0 is repeated 5 times in the new file.
+
+The upsampling is done right before the GNSS-SDR processing, generating a temporary file that is deleted right after the processing is finished.
+
+\section{Outputs for the temporary GNSS data}\label{sec:gnss-sdr}
+
+Before looking for scintillation-disturbed data, one must check whether the temporary recordings hold usable GNSS signals. Otherwise, an amplitude or phase fluctuation could come from a faulty recording (\textit{e.g.}, dropped samples, a wrong gain or a missing reference clock) rather than from scintillation. Therefore, RC0-sol0, RC0-sol1, RC0-sol2, RC1-sol0, and RC1-sol1 are all validated at every stage of the GNSS-SDR receiver chain, \textit{i.e.}, signal acquisition and tracking, navigation message decoding, and PVT computation. In addition, the scintillation indices must also be computed, which should be near to zero for nominal operation. In this way, high scintillation indices can be trusted to come from scintillation, rather than a recording problem.
+
+Figure~\ref{fig:gnss-sdr-chain} shows the data chain of GNSS-SDR. Each channel (one per satellite signal) runs its own acquisition, tracking and telemetry decoder; observables and PVT combine all of them.
+
 
 \begin{figure}[H]
   \centering
@@ -106,16 +219,8 @@ A recording is only useful if a GNSS receiver can use it: find the satellites in
   \label{fig:gnss-sdr-chain}
 \end{figure}
 
-\paragraph{Processing setup.} Both channels of a recording are read by one \texttt{Multichannel\_File\_Signal\_Source}, so the two bands advance in lockstep (with one independent source per band, one band runs ahead of the other and its measurements are discarded). That source reads both files at one rate: the 4~MS/s L1 C/A file of the L1/L5 recordings is upsampled 5 times (each sample repeated) to the 20~MS/s of L5 before GNSS-SDR. GNSS-SDR v0.0.20's position (RTKLIB, single point) is computed per run as follows:
-\begin{itemize}
-  \item \textbf{First recording, GPS run} (GPS L1 C/A + L5): from L1 C/A only (broadcast ionosphere model), since its dual-frequency solver was unstable with the few L5-capable GPS satellites in view. The ionosphere-free GPS L1 C/A + L5 position is computed outside GNSS-SDR, from its observables and decoded ephemeris, with our own single-point positioning (\texttt{gnss\_spp\_lib.py}).
-  \item \textbf{First recording, Galileo run} (Galileo E1-B/C + E5a): GNSS-SDR's own dual-frequency, ionosphere-free (\texttt{Iono-Free-LC}) position. Every Galileo satellite broadcasts both E1 and E5a, so all satellites in view count, unlike GPS L5.
-  \item \textbf{Second recording} (GPS L1 C/A + L2C + Galileo E1-B/C): GNSS-SDR's own single-frequency, multi-constellation position from GPS L1 C/A and Galileo E1 together (broadcast ionosphere model; RTKLIB estimates the GPS--Galileo clock offset). GNSS-SDR's solver ignores L2C, so the ionosphere-free GPS L1 C/A + L2C position again comes from \texttt{gnss\_spp\_lib.py}.
-\end{itemize}
-The Galileo run's stages are reported after the GPS run's, with ``(Galileo E1 + E5a)'' in their headings; its signal source is the same recording, so that stage is not repeated.
-
 \subsection{Signal source}
-Reads the recorded I/Q samples (here, the SigMF data files) and delivers them as a stream, one per channel. GNSS-SDR has no output of its own here, so the recording itself is examined.
+Reads the recorded I/Q samples (here, coming from the data files) and delivers them as a stream, one per channel. GNSS-SDR has no output of its own here, so the recording itself is examined.
 \begin{itemize}
   \item \textbf{Power spectral density} per channel: the shape of the receiver passband over a flat thermal-noise floor. GNSS signals are 15--20~dB below the noise, so they are invisible here; a narrow peak would be interference.
   \item \textbf{I/Q histograms}: should be Gaussian, centred on zero, and far from the integer limits (no clipping).
@@ -123,7 +228,7 @@ Reads the recorded I/Q samples (here, the SigMF data files) and delivers them as
 \end{itemize}
 
 \subsection{Signal conditioner}
-Adapts the samples to what the channels process: converts the file format (signed 8- or 16-bit interleaved I/Q) to complex floating point (data type adapter), optionally filters (input filter) and resamples (resampler).
+Adapts the input samples (from the binary file) to what the channels process, \textit{i.e.}, converts the file format (signed 8- or 16-bit interleaved I/Q) to complex floating point (data type adapter for C++), optionally filters (input filter) and resamples (resampler).
 \begin{itemize}
   \item \textbf{Table} per channel: file format, data type adapter, filter, resampling, and rate before and after.
 \end{itemize}
@@ -290,7 +395,7 @@ Thus, only the recordings with moderate or strong scintillation are kept: they a
 \newpage
 
 \part{Temporary GNSS data}
-\label{part:recordings}
+\label{part:temporary}
 
 This part holds the recordings of the last 15 recording days (days with at least one recording), with all the outputs derived from them so far. This data is temporary: at the end of each 15-day cycle, only the recordings with moderate or strong scintillation (Section~\ref{sec:scintillation-classes}) are moved to the permanent storage (Part~\ref{part:permanent}), the others are deleted, and this part is overwritten with the new 15 days. Older days are kept in the repository history.
 
@@ -1010,7 +1115,7 @@ Table~\ref{tab:temporary-calendar} shows the days of this 15-day window when rec
 \part{Permanent scintillating data}
 \label{part:permanent}
 
-This part holds the recordings classified with moderate or strong scintillation (Section~\ref{sec:scintillation-classes}), which are kept in the permanent NAS storage. To keep the report small enough to be shared, each recording is shown with its metadata and its scintillation outputs only; the full GNSS-SDR outputs are shown while the recording is in Part~\ref{part:recordings}.
+This part holds the recordings classified with moderate or strong scintillation (Section~\ref{sec:scintillation-classes}), which are kept in the permanent NAS storage. To keep the report small enough to be shared, each recording is shown with its metadata and its scintillation outputs only; the full GNSS-SDR outputs are shown while the recording is in Part~\ref{part:temporary}.
 
 Table~\ref{tab:permanent-calendar} shows the days of the permanently stored recordings, with the same colors as the temporary calendar: \textcolor{green}{green} means 2 recordings, \textcolor{blue}{blue} means 1 recording, and no color means no recording was stored.
 
